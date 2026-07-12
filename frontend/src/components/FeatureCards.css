@@ -1,0 +1,64 @@
+.feature-grid .feature-card {
+  min-height: 112px;
+  border: 1px solid #171c18;
+  background: linear-gradient(135deg, #0a0d0b, #070908);
+  padding: 18px;
+  display: flex;
+  gap: 13px;
+  color: inherit;
+  text-decoration: none;
+}
+.feature-grid .feature-card > span {
+  width: 35px;
+  height: 35px;
+  flex: none;
+  border-radius: 7px;
+  background: #15200d;
+  color: var(--lime);
+  display: grid;
+  place-items: center;
+}
+.feature-grid .feature-card b {
+  font-size: 11px;
+}
+.feature-grid .feature-card p {
+  font-size: 9px;
+  color: #777e77;
+  line-height: 1.6;
+  margin: 5px 0;
+}
+.feature-grid .feature-card {
+  transition:
+    transform 0.22s ease,
+    border-color 0.22s ease,
+    background 0.22s ease;
+}
+
+.feature-grid .feature-card:hover {
+  transform: translateY(-4px);
+  border-color: #465a31;
+  background: linear-gradient(135deg, #10150d, #080a08);
+}
+
+.feature-grid a.feature-card {
+  cursor: pointer;
+}
+.feature-grid a.feature-card div > i {
+  font-size: 8px;
+  font-style: normal;
+  color: var(--lime);
+}
+.feature-grid article.feature-card div > i {
+  font-size: 7px;
+  color: #4e554e;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.simulator-section > .heading {
+  margin: 0 auto;
+  text-align: center;
+}
+.simulator-section > .heading > p {
+  margin-left: auto;
+  margin-right: auto;
+}
