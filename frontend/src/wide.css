@@ -121,6 +121,24 @@ main {
   text-align: center;
 }
 
+.hero-centered { position: relative; isolation: isolate; }
+.hero-centered .hero-lightfall { z-index: -1; }
+.hero-centered::after { content:''; position:absolute; z-index:-1; inset:0; pointer-events:none; background:radial-gradient(circle at center,rgb(5 5 5 / 4%) 0%,rgb(5 5 5 / 12%) 52%,rgb(5 5 5 / 34%) 100%),linear-gradient(0deg,rgb(5 5 5 / 78%),transparent 16%,transparent 84%,rgb(5 5 5 / 52%)); }
+
+.architecture-signals { position:absolute; z-index:0; inset:0; pointer-events:none; }
+.signal-chip { position:absolute; display:flex; align-items:center; gap:8px; padding:7px 10px; color:var(--lime); background:rgb(5 5 5 / 72%); border:1px solid color-mix(in srgb,currentColor 32%,transparent); border-radius:7px; backdrop-filter:blur(8px); opacity:.72; animation:signalFloat 5s ease-in-out infinite; transition:opacity .2s ease,border-color .2s ease,transform .2s ease; }
+.signal-chip>i { width:5px; height:5px; flex:none; border-radius:50%; background:currentColor; box-shadow:0 0 8px currentColor; }
+.signal-chip>span { display:grid; grid-template-columns:auto auto auto; align-items:center; column-gap:6px; }
+.signal-chip small { grid-column:1/-1; color:#777e77; font:7px ui-monospace; text-transform:uppercase; letter-spacing:.09em; margin-bottom:2px; }
+.signal-chip b,.signal-chip em { font:500 9px ui-monospace; color:#d9ddd7; }
+.signal-chip em { color:currentColor; font-style:normal; }
+.signal-chip.amber { color:var(--amber); }.signal-chip.coral { color:var(--coral); }.signal-chip.teal { color:var(--teal); }
+.signal-a { left:7%; top:22%; }.signal-b { right:7%; top:25%; animation-delay:-1s; }.signal-c { left:9%; bottom:19%; animation-delay:-2s; }.signal-d { right:8%; bottom:18%; animation-delay:-3s; }.signal-e { right:18%; top:51%; animation-delay:-4s; }
+@keyframes signalFloat { 50% { transform:translateY(-5px); opacity:.9; } }
+
+@media(max-width:1050px){.signal-e{display:none}.signal-a,.signal-c{left:3%}.signal-b,.signal-d{right:3%}}
+@media(max-width:760px){.architecture-signals{display:none}}
+
 .hero-centered .hero-copy {
   width: min(900px, 100%);
 }
@@ -129,6 +147,14 @@ main {
   font-size: clamp(52px, 5.2vw, 84px);
   line-height: 1.02;
   letter-spacing: -0.055em;
+}
+
+.shiny-title .shiny-text {
+  min-height: 1.02em;
+}
+
+.shiny-title .shiny-accent {
+  color: var(--lime);
 }
 
 .hero-centered .hero-copy > p {
@@ -143,26 +169,20 @@ main {
 }
 
 .galaxy-story {
-  display: grid;
-  grid-template-columns: minmax(300px, 0.7fr) minmax(520px, 1.3fr);
-  align-items: center;
-  gap: 40px;
+  display: block;
   min-height: 650px;
 }
 
 .galaxy-story .heading {
-  text-align: left;
-  margin: 0;
+  text-align: center;
+  margin: 0 auto;
 }
 
 .galaxy-story .heading > p {
-  margin-left: 0;
+  margin-left: auto;
 }
-
-.galaxy-story .hero-graph {
-  width: 100%;
-  min-width: 0;
-}
+.galaxy-loading{height:560px;margin-top:40px;border:1px solid #293125;border-radius:12px;background:#070907;display:grid;place-content:center;gap:12px;text-align:center;color:#777}.galaxy-loading span{color:var(--lime);font-size:28px;animation:spin 3s linear infinite}.galaxy-loading b{font:9px ui-monospace}
+.feature-grid .feature-card{color:inherit;text-decoration:none}.feature-grid a.feature-card{transition:transform .22s ease,border-color .22s ease,background .22s ease;cursor:pointer}.feature-grid a.feature-card:hover{transform:translateY(-4px);border-color:#465a31;background:linear-gradient(135deg,#10150d,#080a08)}.feature-grid a.feature-card div>i{font-size:8px;font-style:normal;color:var(--lime)}.feature-grid article.feature-card div>i{font-size:7px;color:#4e554e;text-transform:uppercase;letter-spacing:.08em}.simulator-section>.heading{margin:0 auto;text-align:center}.simulator-section>.heading>p{margin-left:auto;margin-right:auto}
 
 @media (max-width: 850px) {
   .hero-centered {
@@ -187,9 +207,109 @@ main {
   }
 }
 
-/* Content must never depend on JavaScript intersection events to be visible. */
-.reveal,
-.reveal.visible {
+/* Progressive motion: content stays visible unless JavaScript enables animation. */
+.reveal { opacity: 1; transform: none; }
+
+.motion-ready .reveal:not(.visible) {
+  opacity: 0;
+  transform: translateY(24px) scale(.985);
+}
+
+.motion-ready .reveal.visible {
   opacity: 1;
   transform: none;
+  transition: opacity 700ms ease var(--delay, 0ms), transform 700ms cubic-bezier(.2,.7,.2,1) var(--delay, 0ms);
+}
+
+.scroll-progress {
+  position: fixed;
+  z-index: 100;
+  top: 0;
+  left: 0;
+  width: var(--scroll-progress, 0%);
+  height: 2px;
+  pointer-events: none;
+  background: var(--lime);
+}
+
+.topnav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgb(5 5 5 / 78%);
+  border-bottom: 1px solid rgb(255 255 255 / 4%);
+  backdrop-filter: blur(16px);
+}
+
+.navlinks a {
+  position: relative;
+  transition: color 180ms ease;
+}
+
+.navlinks a:hover,
+.navlinks a.active { color: #fff; }
+
+.navlinks a.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -10px;
+  height: 1px;
+  background: var(--lime);
+}
+
+.repo-input {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.actions > button {
+  height: 39px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 15px;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.actions > button.primary {
+  color: #101506;
+  border-color: var(--lime);
+  background: var(--lime);
+  font-weight: 650;
+  box-shadow: 0 8px 24px rgb(183 255 42 / 10%);
+}
+
+.actions > a,
+.actions > button,
+.github {
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.actions > a:hover,
+.actions > button:hover,
+.github:hover {
+  transform: translateY(-2px);
+  border-color: rgb(183 255 42 / 45%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-ready .reveal,
+  .motion-ready .reveal.visible {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .actions > a,
+  .actions > button,
+  .github { transition: none; }
 }
