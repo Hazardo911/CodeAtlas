@@ -1,15 +1,249 @@
-import {useEffect,useMemo,useRef,useState} from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './WhatIfSimulator.css'
-type Action='remove'|'replace'|'modify'
-const scenarios={auth:{risk:86,files:24,routes:7,affected:['web','api','database'],summary:'Session verification and protected routes fail across the application.',fix:'Introduce a replacement identity provider before removing auth.'},api:{risk:74,files:31,routes:12,affected:['web','workers','cache'],summary:'Clients and workers lose their primary communication layer.',fix:'Version the new API contract and migrate consumers incrementally.'},database:{risk:92,files:18,routes:9,affected:['core','auth','workers'],summary:'Persistent state becomes unavailable to every stateful service.',fix:'Add a compatible data adapter and dual-write during migration.'},cache:{risk:43,files:9,routes:3,affected:['api','auth'],summary:'Latency and database load increase while requests remain functional.',fix:'Add an in-memory fallback for expensive queries.'},workers:{risk:58,files:14,routes:2,affected:['api','database'],summary:'Asynchronous jobs and event processing stop running.',fix:'Drain the event queue before moving jobs.'}}
-const actions:Record<Action,string>={remove:'Remove module',replace:'Replace dependency',modify:'Change contract'}
-export default function WhatIfSimulator(){
- const [module,setModule]=useState<keyof typeof scenarios>('auth'),[action,setAction]=useState<Action>('remove'),[phase,setPhase]=useState<'idle'|'running'|'ready'>('idle'),[progress,setProgress]=useState(0);const timer=useRef<number>(0)
- const result=useMemo(()=>{const value=scenarios[module];return{...value,risk:Math.max(20,value.risk+(action==='remove'?0:action==='modify'?-11:-18))}},[action,module]);useEffect(()=>()=>clearInterval(timer.current),[])
- const run=()=>{clearInterval(timer.current);setPhase('running');setProgress(4);timer.current=window.setInterval(()=>setProgress(value=>{const next=Math.min(100,value+(value<70?6:3));if(next===100){clearInterval(timer.current);setTimeout(()=>setPhase('ready'),250)}return next}),70)}
- return <div className="whatif-console"><section className="whatif-builder"><header><span>✦</span><div><small>LOCAL SIMULATION</small><h3>Compose a change</h3></div></header><label>Target module<select value={module} onChange={e=>{setModule(e.target.value as keyof typeof scenarios);setPhase('idle')}}>{Object.keys(scenarios).map(name=><option key={name}>{name}</option>)}</select></label><div className="action-list"><small>CHANGE TYPE</small>{(Object.keys(actions) as Action[]).map(key=><button className={action===key?'active':''} onClick={()=>{setAction(key);setPhase('idle')}} key={key}><i>{key==='remove'?'−':key==='replace'?'⇄':'⌁'}</i><span><b>{actions[key]}</b><em>{key==='remove'?'Model a complete deletion.':key==='replace'?'Swap for an alternative.':'Simulate a breaking API.'}</em></span></button>)}</div><div className="sim-query"><small>SIMULATION QUERY</small><p>What happens if I <b>{actions[action].toLowerCase()}</b> <strong>{module}</strong>?</p></div><button className="run-sim" onClick={run} disabled={phase==='running'}>{phase==='running'?`Analyzing ${progress}%`:'Run impact simulation'}<span>→</span></button><p className="browser-note">⌾ Mock analysis runs locally in your browser</p></section><section className="whatif-result">
- {phase==='idle'&&<div className="result-empty"><div className="radar"><i/><i/><span>?</span></div><h3>Ready to model impact</h3><p>Configure a change to reveal affected architecture paths.</p></div>}
- {phase==='running'&&<div className="result-running"><div className="loading-ring"><span>{progress}%</span></div><h3>Tracing dependencies</h3><p>{progress<40?'Building module context…':progress<75?'Following incoming connections…':'Calculating architectural risk…'}</p><div className="sim-progress"><i style={{width:`${progress}%`}}/></div><div className="trace"><span>web</span><i>→</i><span className="hot">{module}</span><i>→</i><span>core</span></div></div>}
- {phase==='ready'&&<div className="result-ready"><header><div><small>IMPACT REPORT</small><h3>{actions[action]}: {module}</h3></div><span className={result.risk>80?'critical':result.risk>55?'high':'medium'}>{result.risk>80?'Critical':result.risk>55?'High':'Medium'} risk</span></header><div className="risk-row"><div className="risk-dial" style={{'--score':`${result.risk*3.6}deg`} as React.CSSProperties}><b>{result.risk}</b><small>/100</small></div><div className="impact-stats"><article><b>{result.files}</b><span>Affected files</span></article><article><b>{result.routes}</b><span>API routes</span></article><article><b>{result.affected.length}</b><span>Critical flows</span></article></div></div><div className="impact-copy"><small>PRIMARY IMPACT</small><p>{result.summary}</p></div><div className="affected"><small>AFFECTED PATH</small><div><b>{module}</b>{result.affected.map(name=><span key={name}><i>→</i>{name}</span>)}</div></div><div className="fix"><span>✓</span><div><small>RECOMMENDED PATH</small><p>{result.fix}</p></div></div><button className="edit-sim" onClick={()=>setPhase('idle')}>Edit simulation</button></div>}
- </section></div>
+type Action = 'remove' | 'replace' | 'modify'
+const scenarios = {
+  auth: {
+    risk: 86,
+    files: 24,
+    routes: 7,
+    affected: ['web', 'api', 'database'],
+    summary: 'Session verification and protected routes fail across the application.',
+    fix: 'Introduce a replacement identity provider before removing auth.',
+  },
+  api: {
+    risk: 74,
+    files: 31,
+    routes: 12,
+    affected: ['web', 'workers', 'cache'],
+    summary: 'Clients and workers lose their primary communication layer.',
+    fix: 'Version the new API contract and migrate consumers incrementally.',
+  },
+  database: {
+    risk: 92,
+    files: 18,
+    routes: 9,
+    affected: ['core', 'auth', 'workers'],
+    summary: 'Persistent state becomes unavailable to every stateful service.',
+    fix: 'Add a compatible data adapter and dual-write during migration.',
+  },
+  cache: {
+    risk: 43,
+    files: 9,
+    routes: 3,
+    affected: ['api', 'auth'],
+    summary: 'Latency and database load increase while requests remain functional.',
+    fix: 'Add an in-memory fallback for expensive queries.',
+  },
+  workers: {
+    risk: 58,
+    files: 14,
+    routes: 2,
+    affected: ['api', 'database'],
+    summary: 'Asynchronous jobs and event processing stop running.',
+    fix: 'Drain the event queue before moving jobs.',
+  },
+}
+const actions: Record<Action, string> = {
+  remove: 'Remove module',
+  replace: 'Replace dependency',
+  modify: 'Change contract',
+}
+export default function WhatIfSimulator() {
+  const [module, setModule] = useState<keyof typeof scenarios>('auth'),
+    [action, setAction] = useState<Action>('remove'),
+    [phase, setPhase] = useState<'idle' | 'running' | 'ready'>('idle'),
+    [progress, setProgress] = useState(0)
+  const timer = useRef<number>(0)
+  const result = useMemo(() => {
+    const value = scenarios[module]
+    return {
+      ...value,
+      risk: Math.max(20, value.risk + (action === 'remove' ? 0 : action === 'modify' ? -11 : -18)),
+    }
+  }, [action, module])
+  useEffect(() => () => clearInterval(timer.current), [])
+  const run = () => {
+    clearInterval(timer.current)
+    setPhase('running')
+    setProgress(4)
+    timer.current = window.setInterval(
+      () =>
+        setProgress((value) => {
+          const next = Math.min(100, value + (value < 70 ? 6 : 3))
+          if (next === 100) {
+            clearInterval(timer.current)
+            setTimeout(() => setPhase('ready'), 250)
+          }
+          return next
+        }),
+      70,
+    )
+  }
+  return (
+    <div className="whatif-console">
+      <section className="whatif-builder">
+        <header>
+          <span>✦</span>
+          <div>
+            <small>LOCAL SIMULATION</small>
+            <h3>Compose a change</h3>
+          </div>
+        </header>
+        <label>
+          Target module
+          <select
+            value={module}
+            onChange={(e) => {
+              setModule(e.target.value as keyof typeof scenarios)
+              setPhase('idle')
+            }}
+          >
+            {Object.keys(scenarios).map((name) => (
+              <option key={name}>{name}</option>
+            ))}
+          </select>
+        </label>
+        <div className="action-list">
+          <small>CHANGE TYPE</small>
+          {(Object.keys(actions) as Action[]).map((key) => (
+            <button
+              className={action === key ? 'active' : ''}
+              onClick={() => {
+                setAction(key)
+                setPhase('idle')
+              }}
+              key={key}
+            >
+              <i>{key === 'remove' ? '−' : key === 'replace' ? '⇄' : '⌁'}</i>
+              <span>
+                <b>{actions[key]}</b>
+                <em>
+                  {key === 'remove'
+                    ? 'Model a complete deletion.'
+                    : key === 'replace'
+                      ? 'Swap for an alternative.'
+                      : 'Simulate a breaking API.'}
+                </em>
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="sim-query">
+          <small>SIMULATION QUERY</small>
+          <p>
+            What happens if I <b>{actions[action].toLowerCase()}</b> <strong>{module}</strong>?
+          </p>
+        </div>
+        <button className="run-sim" onClick={run} disabled={phase === 'running'}>
+          {phase === 'running' ? `Analyzing ${progress}%` : 'Run impact simulation'}
+          <span>→</span>
+        </button>
+        <p className="browser-note">⌾ Mock analysis runs locally in your browser</p>
+      </section>
+      <section className="whatif-result">
+        {phase === 'idle' && (
+          <div className="result-empty">
+            <div className="radar">
+              <i />
+              <i />
+              <span>?</span>
+            </div>
+            <h3>Ready to model impact</h3>
+            <p>Configure a change to reveal affected architecture paths.</p>
+          </div>
+        )}
+        {phase === 'running' && (
+          <div className="result-running">
+            <div className="loading-ring">
+              <span>{progress}%</span>
+            </div>
+            <h3>Tracing dependencies</h3>
+            <p>
+              {progress < 40
+                ? 'Building module context…'
+                : progress < 75
+                  ? 'Following incoming connections…'
+                  : 'Calculating architectural risk…'}
+            </p>
+            <div className="sim-progress">
+              <i style={{ width: `${progress}%` }} />
+            </div>
+            <div className="trace">
+              <span>web</span>
+              <i>→</i>
+              <span className="hot">{module}</span>
+              <i>→</i>
+              <span>core</span>
+            </div>
+          </div>
+        )}
+        {phase === 'ready' && (
+          <div className="result-ready">
+            <header>
+              <div>
+                <small>IMPACT REPORT</small>
+                <h3>
+                  {actions[action]}: {module}
+                </h3>
+              </div>
+              <span
+                className={result.risk > 80 ? 'critical' : result.risk > 55 ? 'high' : 'medium'}
+              >
+                {result.risk > 80 ? 'Critical' : result.risk > 55 ? 'High' : 'Medium'} risk
+              </span>
+            </header>
+            <div className="risk-row">
+              <div
+                className="risk-dial"
+                style={{ '--score': `${result.risk * 3.6}deg` } as React.CSSProperties}
+              >
+                <b>{result.risk}</b>
+                <small>/100</small>
+              </div>
+              <div className="impact-stats">
+                <article>
+                  <b>{result.files}</b>
+                  <span>Affected files</span>
+                </article>
+                <article>
+                  <b>{result.routes}</b>
+                  <span>API routes</span>
+                </article>
+                <article>
+                  <b>{result.affected.length}</b>
+                  <span>Critical flows</span>
+                </article>
+              </div>
+            </div>
+            <div className="impact-copy">
+              <small>PRIMARY IMPACT</small>
+              <p>{result.summary}</p>
+            </div>
+            <div className="affected">
+              <small>AFFECTED PATH</small>
+              <div>
+                <b>{module}</b>
+                {result.affected.map((name) => (
+                  <span key={name}>
+                    <i>→</i>
+                    {name}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="fix">
+              <span>✓</span>
+              <div>
+                <small>RECOMMENDED PATH</small>
+                <p>{result.fix}</p>
+              </div>
+            </div>
+            <button className="edit-sim" onClick={() => setPhase('idle')}>
+              Edit simulation
+            </button>
+          </div>
+        )}
+      </section>
+    </div>
+  )
 }

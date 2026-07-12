@@ -1,32 +1,230 @@
-# React + TypeScript + Vite
+# CodeAtlas Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The frontend application for **CodeAtlas**, an AI-powered software architecture visualization platform that helps developers understand complex codebases through interactive visualizations and intelligent analysis.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Features
 
-## React Compiler
+- 🌌 **Project Galaxy** – Explore project modules and their relationships in an interactive visualization.
+- 🔍 **What-if Simulator** – Simulate architectural changes before modifying your code.
+- 🤖 **AI Onboarding** – Designed to help developers understand unfamiliar codebases quickly.
+- 📊 **Project Health** – Visualize maintainability insights and project health metrics.
+- 💬 **AI Chat** *(Coming Soon)* – AI-powered conversations about your codebase.
+- 🗺️ **Architecture Map** *(Coming Soon)* – Automatically generate architecture diagrams.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the Oxlint configuration
+## Tech Stack
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+- React
+- TypeScript
+- Vite
+- CSS3
+- Oxlint
+- Prettier
+- GitHub Actions (CI)
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+---
+
+## Prerequisites
+
+- Node.js **22+**
+- npm
+
+---
+
+## Getting Started
+
+### Clone the repository
+
+```bash
+git clone https://github.com/Hazardo911/CodeAtlas.git
+cd CodeAtlas/frontend
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+### Install dependencies
+
+```bash
+npm install
+```
+
+### Start the development server
+
+```bash
+npm run dev
+```
+
+The application will be available at:
+
+```text
+http://localhost:5173
+```
+
+---
+
+# Available Scripts
+
+## Development
+
+### Start Development Server
+
+```bash
+npm run dev
+```
+
+Starts the Vite development server with Hot Module Replacement (HMR).
+
+---
+
+### Build for Production
+
+```bash
+npm run build
+```
+
+Compiles TypeScript and creates an optimized production build.
+
+---
+
+### Preview Production Build
+
+```bash
+npm run preview
+```
+
+Serves the production build locally.
+
+---
+
+# Code Quality
+
+### Run All Project Checks
+
+```bash
+npm run check
+```
+
+Runs all quality checks:
+
+- ✅ Prettier formatting check
+- ✅ Oxlint
+- ✅ Production build
+
+This is the recommended command to run before pushing changes.
+
+---
+
+### Format the Project
+
+```bash
+npm run format
+```
+
+Formats all supported files using Prettier.
+
+---
+
+### Check Formatting
+
+```bash
+npm run format:check
+```
+
+Checks whether all files follow the configured formatting rules without modifying them.
+
+---
+
+### Run Oxlint
+
+```bash
+npm run lint
+```
+
+Checks the project for code quality issues and potential bugs.
+
+---
+
+### Automatically Fix Lint Issues
+
+```bash
+npm run lint:fix
+```
+
+Automatically fixes supported Oxlint issues.
+
+---
+
+## Development Workflow
+
+Before pushing changes, run:
+
+```bash
+npm run check
+```
+
+This verifies that:
+
+- Formatting is correct
+- Linting passes
+- The project builds successfully
+
+The same checks are automatically executed by GitHub Actions on every push and pull request.
+
+---
+
+## Project Structure
+
+```text
+frontend/
+├── public/
+├── src/
+│   ├── assets/
+│   ├── components/
+│   ├── App.tsx
+│   ├── App.css
+│   ├── index.css
+│   ├── main.tsx
+│   └── wide.css
+├── .github/
+│   └── workflows/
+├── .oxlintrc.json
+├── .prettierrc
+├── .prettierignore
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+└── README.md
+```
+
+---
+
+## Continuous Integration
+
+GitHub Actions automatically verifies every push and pull request by:
+
+- Installing dependencies
+- Checking formatting with Prettier
+- Running Oxlint
+- Building the production bundle
+
+---
+
+## Contributing
+
+1. Create a new branch from `frontend`.
+2. Make your changes.
+3. Run:
+
+```bash
+npm run check
+```
+
+4. Commit your changes.
+5. Open a Pull Request.
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the repository's `LICENSE` file for details.

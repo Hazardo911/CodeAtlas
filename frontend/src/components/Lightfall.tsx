@@ -21,16 +21,20 @@ type LightfallProps = {
   className?: string
 }
 
-const hex = (value:string) => {
-  const color=value.replace('#','').padEnd(6,'0')
-  return [parseInt(color.slice(0,2),16)/255,parseInt(color.slice(2,4),16)/255,parseInt(color.slice(4,6),16)/255]
+const hex = (value: string) => {
+  const color = value.replace('#', '').padEnd(6, '0')
+  return [
+    parseInt(color.slice(0, 2), 16) / 255,
+    parseInt(color.slice(2, 4), 16) / 255,
+    parseInt(color.slice(4, 6), 16) / 255,
+  ]
 }
 
-const vertex=`
+const vertex = `
 attribute vec2 position;attribute vec2 uv;varying vec2 vUv;
 void main(){vUv=uv;gl_Position=vec4(position,0.,1.);}`
 
-const fragment=`
+const fragment = `
 precision highp float;
 varying vec2 vUv;
 uniform vec2 uResolution;uniform vec2 uMouse;uniform float uTime;uniform float uSpeed;
@@ -67,26 +71,112 @@ void main(){
 }`
 
 export default function Lightfall({
-  colors=['#B7FF2A','#FFB84D','#FF6B6B','#2DD4BF'],backgroundColor='#050505',speed=.5,
-  streakCount=8,streakWidth=1,streakLength=1,glow=.65,density=1,twinkle=.35,zoom=2,
-  backgroundGlow=.25,opacity=.58,mouseInteraction=true,mouseStrength=.22,mouseRadius=.75,className=''
-}:LightfallProps){
- const container=useRef<HTMLDivElement>(null)
- useEffect(()=>{
-  const host=container.current;if(!host)return
-  const renderer=new Renderer({dpr:Math.min(window.devicePixelRatio,1.5),alpha:true,antialias:false})
-  const gl=renderer.gl;const canvas=gl.canvas as HTMLCanvasElement
-  canvas.style.width='100%';canvas.style.height='100%';canvas.style.display='block';host.appendChild(canvas)
-  const list=[0,1,2,3].map(index=>hex(colors[index]??colors[0]??'#B7FF2A'))
-  const uniforms={uResolution:{value:[1,1]},uMouse:{value:[.5,.5]},uTime:{value:0},uSpeed:{value:speed},uWidth:{value:streakWidth},uLength:{value:streakLength},uGlow:{value:glow},uDensity:{value:density},uTwinkle:{value:twinkle},uZoom:{value:zoom},uBgGlow:{value:backgroundGlow},uOpacity:{value:opacity},uMouseStrength:{value:mouseInteraction?mouseStrength:0},uMouseRadius:{value:mouseRadius},uCount:{value:Math.max(1,Math.min(16,Math.round(streakCount)))},uBg:{value:hex(backgroundColor)},uC0:{value:list[0]},uC1:{value:list[1]},uC2:{value:list[2]},uC3:{value:list[3]}}
-  const program=new Program(gl,{vertex,fragment,uniforms});const geometry=new Triangle(gl);const mesh=new Mesh(gl,{geometry,program})
-  const resize=()=>{const rect=host.getBoundingClientRect();renderer.setSize(rect.width,rect.height);uniforms.uResolution.value=[rect.width,rect.height]}
-  const pointer=(event:PointerEvent)=>{const rect=host.getBoundingClientRect();uniforms.uMouse.value=[(event.clientX-rect.left)/rect.width,1-(event.clientY-rect.top)/rect.height]}
-  const observer=new ResizeObserver(resize);observer.observe(host);resize();if(mouseInteraction)host.addEventListener('pointermove',pointer)
-  let frame=0;const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  const render=(time:number)=>{uniforms.uTime.value=reduce?0:time*.001;renderer.render({scene:mesh});if(!reduce)frame=requestAnimationFrame(render)}
-  frame=requestAnimationFrame(render)
-  return()=>{cancelAnimationFrame(frame);observer.disconnect();host.removeEventListener('pointermove',pointer);canvas.remove();geometry.remove();program.remove()}
- },[backgroundColor,backgroundGlow,colors,density,glow,mouseInteraction,mouseRadius,mouseStrength,opacity,speed,streakCount,streakLength,streakWidth,twinkle,zoom])
- return <div ref={container} className={`lightfall-container ${className}`} aria-hidden="true"/>
+  colors = ['#B7FF2A', '#FFB84D', '#FF6B6B', '#2DD4BF'],
+  backgroundColor = '#050505',
+  speed = 0.5,
+  streakCount = 8,
+  streakWidth = 1,
+  streakLength = 1,
+  glow = 0.65,
+  density = 1,
+  twinkle = 0.35,
+  zoom = 2,
+  backgroundGlow = 0.25,
+  opacity = 0.58,
+  mouseInteraction = true,
+  mouseStrength = 0.22,
+  mouseRadius = 0.75,
+  className = '',
+}: LightfallProps) {
+  const container = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const host = container.current
+    if (!host) return
+    const renderer = new Renderer({
+      dpr: Math.min(window.devicePixelRatio, 1.5),
+      alpha: true,
+      antialias: false,
+    })
+    const gl = renderer.gl
+    const canvas = gl.canvas as HTMLCanvasElement
+    canvas.style.width = '100%'
+    canvas.style.height = '100%'
+    canvas.style.display = 'block'
+    host.appendChild(canvas)
+    const list = [0, 1, 2, 3].map((index) => hex(colors[index] ?? colors[0] ?? '#B7FF2A'))
+    const uniforms = {
+      uResolution: { value: [1, 1] },
+      uMouse: { value: [0.5, 0.5] },
+      uTime: { value: 0 },
+      uSpeed: { value: speed },
+      uWidth: { value: streakWidth },
+      uLength: { value: streakLength },
+      uGlow: { value: glow },
+      uDensity: { value: density },
+      uTwinkle: { value: twinkle },
+      uZoom: { value: zoom },
+      uBgGlow: { value: backgroundGlow },
+      uOpacity: { value: opacity },
+      uMouseStrength: { value: mouseInteraction ? mouseStrength : 0 },
+      uMouseRadius: { value: mouseRadius },
+      uCount: { value: Math.max(1, Math.min(16, Math.round(streakCount))) },
+      uBg: { value: hex(backgroundColor) },
+      uC0: { value: list[0] },
+      uC1: { value: list[1] },
+      uC2: { value: list[2] },
+      uC3: { value: list[3] },
+    }
+    const program = new Program(gl, { vertex, fragment, uniforms })
+    const geometry = new Triangle(gl)
+    const mesh = new Mesh(gl, { geometry, program })
+    const resize = () => {
+      const rect = host.getBoundingClientRect()
+      renderer.setSize(rect.width, rect.height)
+      uniforms.uResolution.value = [rect.width, rect.height]
+    }
+    const pointer = (event: PointerEvent) => {
+      const rect = host.getBoundingClientRect()
+      uniforms.uMouse.value = [
+        (event.clientX - rect.left) / rect.width,
+        1 - (event.clientY - rect.top) / rect.height,
+      ]
+    }
+    const observer = new ResizeObserver(resize)
+    observer.observe(host)
+    resize()
+    if (mouseInteraction) host.addEventListener('pointermove', pointer)
+    let frame = 0
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const render = (time: number) => {
+      uniforms.uTime.value = reduce ? 0 : time * 0.001
+      renderer.render({ scene: mesh })
+      if (!reduce) frame = requestAnimationFrame(render)
+    }
+    frame = requestAnimationFrame(render)
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+      host.removeEventListener('pointermove', pointer)
+      canvas.remove()
+      geometry.remove()
+      program.remove()
+    }
+  }, [
+    backgroundColor,
+    backgroundGlow,
+    colors,
+    density,
+    glow,
+    mouseInteraction,
+    mouseRadius,
+    mouseStrength,
+    opacity,
+    speed,
+    streakCount,
+    streakLength,
+    streakWidth,
+    twinkle,
+    zoom,
+  ])
+  return <div ref={container} className={`lightfall-container ${className}`} aria-hidden="true" />
 }

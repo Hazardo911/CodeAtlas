@@ -1,2 +1,152 @@
-.galaxy-three-viewport{position:relative;min-width:0;overflow:hidden;background:radial-gradient(circle at 50% 45%,#111b0c,#050705 62%)}.galaxy-three-viewport canvas{display:block;width:100%;height:100%}.galaxy-scanline{position:absolute;z-index:2;inset:0;pointer-events:none;background:linear-gradient(transparent 50%,rgb(183 255 42 / 2%) 50%);background-size:100% 4px;mix-blend-mode:screen}.galaxy-mode{position:absolute;right:17px;top:15px;display:flex;gap:7px;align-items:center;padding:7px 9px;border:1px solid #283322;border-radius:5px;background:rgb(5 7 5 / 72%);color:#778873;font:7px ui-monospace}.galaxy-mode i{width:5px;height:5px;border-radius:50%;background:var(--lime);box-shadow:0 0 7px var(--lime)}
-.galaxy-three-viewport:after{content:'';position:absolute;z-index:1;inset:0;pointer-events:none;background:radial-gradient(circle at center,transparent 48%,rgb(0 0 0 / 55%) 100%)}.galaxy-telemetry{position:absolute;z-index:3;left:17px;top:15px;width:185px;padding:12px;border:1px solid #283322;border-radius:7px;background:rgb(5 7 5 / 76%);backdrop-filter:blur(9px)}.galaxy-telemetry>small{display:block;color:#64705f;font:6px ui-monospace;letter-spacing:.13em}.galaxy-telemetry>b{display:flex;align-items:center;gap:7px;color:#cbd2c7;font:8px ui-monospace;margin:8px 0 11px}.galaxy-telemetry>b i{width:5px;height:5px;border-radius:50%;background:var(--lime);box-shadow:0 0 8px var(--lime);animation:pulse 1.8s infinite}.galaxy-telemetry>div{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}.galaxy-telemetry span{display:flex;flex-direction:column;color:#626a61;font:6px ui-monospace}.galaxy-telemetry strong{color:#dce2d8;font-size:9px;margin-bottom:3px}.galaxy-legend{position:absolute;z-index:3;right:16px;bottom:14px;display:flex;gap:11px;padding:8px 10px;border:1px solid #242b21;border-radius:6px;background:rgb(5 7 5 / 74%);backdrop-filter:blur(8px)}.galaxy-legend span{display:flex;align-items:center;gap:5px;color:#7a8278;font:6px ui-monospace}.galaxy-legend i{width:5px;height:5px;border-radius:50%;background:var(--lime);box-shadow:0 0 5px currentColor}.galaxy-legend i.service{background:var(--amber)}.galaxy-legend i.data{background:var(--coral)}.galaxy-legend i.interface{background:var(--teal)}.galaxy-instruction{z-index:3}@media(max-width:650px){.galaxy-telemetry{width:150px}.galaxy-telemetry>div span:nth-child(3){display:none}.galaxy-telemetry>div{grid-template-columns:1fr 1fr}.galaxy-legend{display:none}}
+.galaxy-three-viewport {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 45%, #111b0c, #050705 62%);
+}
+.galaxy-three-viewport canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.galaxy-scanline {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(transparent 50%, rgb(183 255 42 / 2%) 50%);
+  background-size: 100% 4px;
+  mix-blend-mode: screen;
+}
+.galaxy-mode {
+  position: absolute;
+  right: 17px;
+  top: 15px;
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  padding: 7px 9px;
+  border: 1px solid #283322;
+  border-radius: 5px;
+  background: rgb(5 7 5 / 72%);
+  color: #778873;
+  font: 7px ui-monospace;
+}
+.galaxy-mode i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--lime);
+  box-shadow: 0 0 7px var(--lime);
+}
+.galaxy-three-viewport:after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at center, transparent 48%, rgb(0 0 0 / 55%) 100%);
+}
+.galaxy-telemetry {
+  position: absolute;
+  z-index: 3;
+  left: 17px;
+  top: 15px;
+  width: 185px;
+  padding: 12px;
+  border: 1px solid #283322;
+  border-radius: 7px;
+  background: rgb(5 7 5 / 76%);
+  backdrop-filter: blur(9px);
+}
+.galaxy-telemetry > small {
+  display: block;
+  color: #64705f;
+  font: 6px ui-monospace;
+  letter-spacing: 0.13em;
+}
+.galaxy-telemetry > b {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #cbd2c7;
+  font: 8px ui-monospace;
+  margin: 8px 0 11px;
+}
+.galaxy-telemetry > b i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--lime);
+  box-shadow: 0 0 8px var(--lime);
+  animation: pulse 1.8s infinite;
+}
+.galaxy-telemetry > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.galaxy-telemetry span {
+  display: flex;
+  flex-direction: column;
+  color: #626a61;
+  font: 6px ui-monospace;
+}
+.galaxy-telemetry strong {
+  color: #dce2d8;
+  font-size: 9px;
+  margin-bottom: 3px;
+}
+.galaxy-legend {
+  position: absolute;
+  z-index: 3;
+  right: 16px;
+  bottom: 14px;
+  display: flex;
+  gap: 11px;
+  padding: 8px 10px;
+  border: 1px solid #242b21;
+  border-radius: 6px;
+  background: rgb(5 7 5 / 74%);
+  backdrop-filter: blur(8px);
+}
+.galaxy-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #7a8278;
+  font: 6px ui-monospace;
+}
+.galaxy-legend i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--lime);
+  box-shadow: 0 0 5px currentColor;
+}
+.galaxy-legend i.service {
+  background: var(--amber);
+}
+.galaxy-legend i.data {
+  background: var(--coral);
+}
+.galaxy-legend i.interface {
+  background: var(--teal);
+}
+.galaxy-instruction {
+  z-index: 3;
+}
+@media (max-width: 650px) {
+  .galaxy-telemetry {
+    width: 150px;
+  }
+  .galaxy-telemetry > div span:nth-child(3) {
+    display: none;
+  }
+  .galaxy-telemetry > div {
+    grid-template-columns: 1fr 1fr;
+  }
+  .galaxy-legend {
+    display: none;
+  }
+}

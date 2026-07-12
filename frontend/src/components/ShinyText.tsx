@@ -37,7 +37,7 @@ export default function ShinyText({
   const animationDuration = speed * 1000
   const delayDuration = delay * 1000
 
-  useAnimationFrame(time => {
+  useAnimationFrame((time) => {
     if (disabled || isPaused) {
       lastTimeRef.current = null
       return
@@ -54,7 +54,8 @@ export default function ShinyText({
       const cycleTime = elapsedRef.current % (cycleDuration * 2)
       if (cycleTime < animationDuration) progress.set((cycleTime / animationDuration) * 100)
       else if (cycleTime < cycleDuration) progress.set(100)
-      else if (cycleTime < cycleDuration + animationDuration) progress.set(100 - ((cycleTime - cycleDuration) / animationDuration) * 100)
+      else if (cycleTime < cycleDuration + animationDuration)
+        progress.set(100 - ((cycleTime - cycleDuration) / animationDuration) * 100)
       else progress.set(0)
     } else {
       const cycleTime = elapsedRef.current % cycleDuration
@@ -68,18 +69,33 @@ export default function ShinyText({
     progress.set(direction === 'left' ? 0 : 100)
   }, [direction, progress])
 
-  const backgroundPosition = useTransform(progress, value => {
+  const backgroundPosition = useTransform(progress, (value) => {
     const position = directionRef.current === 1 ? 150 - value * 2 : -50 + value * 2
     return `${position}% center`
   })
-  const handleMouseEnter = useCallback(() => { if (pauseOnHover) setIsPaused(true) }, [pauseOnHover])
-  const handleMouseLeave = useCallback(() => { if (pauseOnHover) setIsPaused(false) }, [pauseOnHover])
+  const handleMouseEnter = useCallback(() => {
+    if (pauseOnHover) setIsPaused(true)
+  }, [pauseOnHover])
+  const handleMouseLeave = useCallback(() => {
+    if (pauseOnHover) setIsPaused(false)
+  }, [pauseOnHover])
   const gradient = `linear-gradient(${spread}deg, ${color} 0%, ${color} 35%, ${shineColor} 50%, ${color} 65%, ${color} 100%)`
 
-  return <motion.span
-    className={`shiny-text ${className}`}
-    style={{backgroundImage:gradient,backgroundSize:'200% auto',backgroundPosition,WebkitBackgroundClip:'text',backgroundClip:'text',WebkitTextFillColor:'transparent'}}
-    onMouseEnter={handleMouseEnter}
-    onMouseLeave={handleMouseLeave}
-  >{text}</motion.span>
+  return (
+    <motion.span
+      className={`shiny-text ${className}`}
+      style={{
+        backgroundImage: gradient,
+        backgroundSize: '200% auto',
+        backgroundPosition,
+        WebkitBackgroundClip: 'text',
+        backgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+      }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {text}
+    </motion.span>
+  )
 }
