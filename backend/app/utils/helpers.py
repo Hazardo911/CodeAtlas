@@ -46,6 +46,13 @@ def read_json(path: Path):
         return json.load(f)
 
 
+def should_ignore_dir(path: Path) -> bool:
+    """
+    Check if any part of the path is in IGNORE_FOLDERS (case-insensitive).
+    """
+    return any(part.lower() in IGNORE_FOLDERS for part in path.parts)
+
+
 def extract_zip(zip_path: Path, destination: Path):
     """
     Extract ZIP while skipping unnecessary folders.
@@ -55,15 +62,14 @@ def extract_zip(zip_path: Path, destination: Path):
 
         for member in zip_ref.infolist():
 
-            parts = Path(member.filename).parts
-
-            filename = Path(member.filename).name
+            member_path = Path(member.filename)
+            filename = member_path.name
 
             if filename in IGNORE_FILES:
                 continue
 
             # Skip ignored folders
-            if any(part in IGNORE_FOLDERS for part in parts):
+            if should_ignore_dir(member_path):
                 continue
 
             target = destination / member.filename
@@ -102,3 +108,25 @@ def find_project_root(extracted_path: Path) -> Path:
         return items[0]
 
     return extracted_path
+
+
+def copy_folder_contents(src: Path, dest: Path):
+    """
+    Copy all files and folders recursively from src to dest,
+    skipping ignored folders and files.
+    """
+    for root, dirs, files in src.walk():
+        # Prune ignored folders in-place
+        dirs[:] = [d for d in dirs if not should_ignore_dir(Path(d))]
+
+        # Calculate subpath relative to src
+        rel_path = root.relative_to(src)
+        dest_dir = dest / rel_path
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        for file in files:
+            if file in IGNORE_FILES:
+                continue
+            src_file = root / file
+            dest_file = dest_dir / file
+            shutil.copy2(src_file, dest_file)

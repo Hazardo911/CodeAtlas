@@ -2,6 +2,8 @@ from fastapi import FastAPI
 
 from app.database.db import Base, engine
 from app.api.project import router as project_router
+from app.api.ai import router as ai_router
+from app.api.graph import router as graph_router
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -14,6 +16,9 @@ app = FastAPI(
 
 # Register routers
 app.include_router(project_router)
+app.include_router(ai_router)
+app.include_router(graph_router)
+
 
 
 @app.get("/")

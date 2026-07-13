@@ -15,19 +15,24 @@ class ProjectSource:
 
 
 IGNORE_FOLDERS = {
-    ".venv",
+    "env",
     "venv",
-    "__pycache__",
-    ".git",
-    ".github",
-    ".idea",
-    ".vscode",
+    ".venv",
     "node_modules",
-    "dist",
+    ".git",
+    "__pycache__",
     "build",
+    "dist",
     "uploads",
     "chroma_db",
+    ".cache",
+    ".idea",
+    ".vscode",
+    "target",
+    "out",
+    "coverage",
     ".pytest_cache",
+    ".mypy_cache",
 }
 
 IGNORE_FILES = {

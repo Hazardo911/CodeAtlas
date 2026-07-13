@@ -1,648 +1,244 @@
 # 🚀 CodeAtlas
 
 <p align="center">
+  <img src="https://img.shields.io/badge/status-active-success.svg" alt="Project Status">
+  <img src="https://img.shields.io/badge/python-3.12-blue.svg" alt="Python Version">
+  <img src="https://img.shields.io/badge/backend-FastAPI-green.svg" alt="Backend Framework">
+  <img src="https://img.shields.io/badge/license-MIT-red.svg" alt="License">
+</p>
 
-**Understand Any Codebase in Minutes**
+### 💡 "Understand Any Codebase in Minutes"
 
-An AI-powered codebase analysis platform that scans software projects, understands their architecture, indexes source code using Tree-sitter, and provides intelligent insights for developers.
-
----
-
-⚠️ **Project Status:** Under Active Development
-
-Current Version: **v0.1.0**
-
----
-
-## 📖 Overview
-
-Modern software projects are becoming larger and more complex every day. Understanding an unfamiliar codebase often takes hours or even days.
-
-CodeAtlas aims to solve this problem.
-
-Instead of manually exploring hundreds of files, developers simply upload their project, and CodeAtlas automatically:
-
-- Scans the repository
-- Detects project structure
-- Identifies technologies used
-- Builds a software architecture overview
-- Extracts classes, functions, methods, and imports
-- Creates a searchable project knowledge base
-- (Upcoming) Allows developers to ask AI questions about the project
-
-The long-term vision is to make onboarding into any codebase as simple as opening ChatGPT.
+CodeAtlas is an on-device, AI-powered codebase analysis platform that scans software repositories, indexes source code using Tree-sitter, automatically infers project architecture using a multi-signal scoring engine, and exposes a secure Retrieval-Augmented Generation (RAG) chat API for codebase exploration.
 
 ---
 
-# 🎯 Project Goal
+## ✨ Features
 
-CodeAtlas is designed to become an intelligent software architecture assistant.
+- **Multiple Project Sources**: Support for uploading ZIP archives, checking out GitHub repositories, and analyzing local workspace directories.
+- **Intelligent Ignore Logic**: Enforces case-insensitive, path-agnostic pruning of dependency folders (e.g. `.venv`, `node_modules`, `build`, `target`) at scan and extraction levels to prevent workspace pollution.
+- **Tree-sitter AST Parsing**: Fully indexes programming language files to extract imports, classes, and function structures.
+- **Registry-Based Architecture Detection**: Modular, configuration-driven scoring engine that evaluates directories, manifests, file extensions, and code imports to identify layers (Backend, Frontend, Mobile, Database, API, AI, Docker, CI/CD) and calculate confidence levels.
+- **Query-Aware Semantic Retrieval**: Vector index retriever that dynamically re-prioritizes context types based on query intent (e.g., placing READMEs first for overview questions, source code first for implementation questions).
+- **Hallucination Reducer & Grounding Guardrails**: Dual-stage LLM generation pipeline that scrubs speculative language, detereministically validates mentioned frameworks/databases against verified evidence, and triggers stricter regeneration prompts or sentence-level pruning if unsupported components are mentioned.
 
-Instead of only displaying files and folders, it understands relationships inside a project.
+---
 
-For example:
+## 🏗 Architecture
 
+### Project Workflow
 ```
-Frontend
-
-↓
-
-API
-
-↓
-
-Backend
-
-↓
-
-Database
+Upload / Ingestion ──> Workspace Extraction ──> Scanner ──> AST Parser (Tree-sitter)
+                                                                    │
+Answer Generation <── Ollama (phi3:latest) <── Prompt Builder <── FAISS Index (BAAI/bge)
 ```
 
-Eventually, developers will be able to ask questions like:
-
-- Explain this project.
-- Where is authentication implemented?
-- Which file handles payments?
-- Show the architecture.
-- Which functions call this method?
-- Explain this class.
-
-without manually reading the source code.
+### Supported Upload Methods
+- **ZIP Upload**: `POST /projects/upload` - Accepts raw ZIP file multipart uploads.
+- **Local Folder Upload**: `POST /projects/upload-folder` - Accepts an absolute path to a folder on the host system, normalizing slash styles dynamically.
+- **GitHub Repository Upload**: `POST /projects/upload-github` - Clones a remote repository via HTTP and initializes a workspace.
 
 ---
 
-# 🏗 Current Features
+## 🔍 Code Analysis Pipeline
 
-## ✅ Project Upload
-
-Currently supported:
-
-- ZIP File Upload
-
-Upcoming:
-
-- Local Folder Upload
-- GitHub Repository URL
-
-Every uploaded project is automatically converted into a standard workspace.
+1. **Scanner**: Traverses the extracted repository source using Python 3.12 `Path.walk()`, pruning ignored folders in-place. Generates file lists, sizes, and language distributions.
+2. **Parser**: Analyzes files matching supported extensions using Tree-sitter grammars to generate abstract syntax trees and extract symbol definitions.
+3. **Health Analyzer**: Audits repository metadata to detect duplicate files, largest modules, empty files, and lines of code.
 
 ---
 
-## ✅ Repository Scanner
+## 🤖 AI Architecture (Local RAG Pipeline)
 
-The scanner automatically discovers:
-
-- Files
-- Directories
-- File extensions
-- Programming languages
-- File sizes
-
-Current output includes:
-
-- Total files
-- Total directories
-- Language distribution
-- File metadata
-
----
-
-## ✅ Health Analysis
-
-The health analyzer generates basic project statistics such as:
-
-- Largest file
-- Empty files
-- Average file size
-- Total project size
-
-Future versions will include:
-
-- Cyclomatic Complexity
-- Maintainability Index
-- Duplicate Code
-- Dead Code Detection
-- Dependency Health
-
----
-
-## ✅ Architecture Detection
-
-Current architecture detection identifies whether the project contains:
-
-- Backend
-- Frontend
-- Database
-- API
-- AI Modules
-- Docker
-- GitHub Actions
-- Testing
-
-This gives a quick overview of the repository before opening any source files.
-
----
-
-## ✅ Python Code Parsing (Tree-sitter)
-
-The project now integrates **Tree-sitter** for source code parsing.
-
-Currently implemented:
-
-- Import detection
-- Class detection
-- Function detection
-
-Upcoming:
-
-- Methods
-- Async functions
-- Decorators
-- Docstrings
-- Variables
-- Function parameters
-- Return types
-
----
-
-## 🚧 AI Features (In Progress)
-
-Upcoming capabilities include:
-
-- AI Codebase Chat
-- Architecture Explanation
-- Documentation Generation
-- Code Review
-- Developer Onboarding
-- Project Summaries
-- Dependency Explanation
-
-The AI will use the indexed project data instead of scanning source code directly.
-
----
-
-# 🏛 Current Backend Architecture
+CodeAtlas runs entirely on-device; no cloud APIs or external LLM tokens are required.
 
 ```
-backend/
-
-├── app/
-│
-├── api/
-│
-├── analysis/
-│
-├── parser/
-│
-├── scanner/
-│
-├── services/
-│
-├── database/
-│
-├── ai/
-│
-├── utils/
-│
-├── config.py
-│
-└── main.py
-
-data/
-
-workspace/
-
-tests/
-```
-
-Each module has only one responsibility.
-
----
-
-# 📂 Workspace Structure
-
-Every uploaded project receives its own workspace.
-
-Example:
-
-```
-workspace/
-
-project_id/
-
-metadata.json
-
-original.zip
-
-logs/
-
-cache/
-
-source/
-```
-
-### Source
-
-Contains the extracted project files.
-
-### Cache
-
-Stores generated analysis.
-
-Current cache files:
-
-```
-scan_result.json
-
-health.json
-
-architecture.json
-```
-
-Upcoming:
-
-```
-symbols.json
+Repository Source Code
+        │
+        ▼
+   Scanner (Ignored Pruning)
+        │
+        ▼
+Tree-sitter AST Parser (Symbol Extraction)
+        │
+        ▼
+Knowledge Base Generation (metadata.json, symbols.json, etc.)
+        │
+        ▼
+Embeddings Generation (Local HuggingFace model: BAAI/bge-small-en-v1.5)
+        │
+        ▼
+Vector Indexing (Local FAISS Store)
+        │
+        ▼
+Query-Aware Semantic Retrieval (Score filtering, duplicate file chunk exclusion)
+        │
+        ▼
+Prompt Builder (Strict grounding, verified evidence metadata)
+        │
+        ▼
+Local Ollama Integration (phi3:latest)
+        │
+        ▼
+Evidence-Grounded Answer
 ```
 
 ---
 
-# ⚙️ Current Workflow
+## 🏛 Architecture Detection Engine
+
+Instead of relying solely on folder structures (such as `frontend/` or `backend/`), CodeAtlas uses a modular, configuration-driven scoring engine matching:
+* **Manifest Detection**: Reads and parses dependencies in files like `package.json`, `pubspec.yaml`, `pom.xml`, etc.
+* **Import Detection**: Scans file headers for framework-specific library import declarations.
+* **Framework Detection**: Deduplicates and matches detected frameworks.
+* **Rule-based Scoring**: Accumulates category points (e.g. +3 for direct framework match, +3 for code import, +3 for entry file, +2 for folder prefix) and evaluates them against threshold settings.
+* **Confidence Levels**: Assigns confidence levels (`High`, `Medium`, `Low`, `None`) based on the score threshold.
+
+---
+
+## 🧠 Supported Ecosystems
+
+### Supported Languages
+* Python (`.py`)
+* JavaScript (`.js`, `.jsx`)
+* TypeScript (`.ts`, `.tsx`)
+* Java (`.java`)
+* Go (`.go`)
+* Rust (`.rs`)
+* C++ (`.cpp`, `.c`, `.h`, `.hpp`)
+* C# (`.cs`)
+* PHP (`.php`)
+* Ruby (`.rb`)
+* Dart (`.dart`)
+* Swift (`.swift`)
+* Kotlin (`.kt`)
+
+### Supported Frameworks & Libraries
+| Language | Frameworks / Libraries |
+| :--- | :--- |
+| **Python** | FastAPI, Django, Flask, Pyramid, Tornado, Sanic |
+| **JavaScript / TypeScript** | React, Next.js, Vue, Nuxt, Angular, Svelte, SvelteKit, Astro, Remix, SolidJS, Express, NestJS |
+| **Java** | Spring Boot |
+| **Go** | Gin, Fiber, Echo |
+| **Rust** | Actix, Rocket, Axum |
+| **PHP** | Laravel, Symfony |
+| **Mobile** | Flutter, React Native, Android (Native), iOS (Native) |
+| **AI / RAG** | LangChain, Ollama, Sentence Transformers, FAISS |
+
+---
+
+## 📂 Workspace Structure & Generated Outputs
+
+Every project workspace receives its own unique folder inside `workspace/{project_id}/` where intermediate representations are cached:
 
 ```
-Upload ZIP
-
-↓
-
-Extract Project
-
-↓
-
-Create Workspace
-
-↓
-
-Scan Files
-
-↓
-
-Detect Languages
-
-↓
-
-Generate Health Report
-
-↓
-
-Detect Architecture
-
-↓
-
-Tree-sitter Parser
-
-↓
-
-(Upcoming)
-
-Generate Symbols
-
-↓
-
-(Upcoming)
-
-AI
+workspace/{project_id}/
+├── source/                  # Extracted source code files
+├── cache/                   # Generated code-analysis JSON outputs
+│   ├── scan_result.json     # File listing and language metadata
+│   ├── health.json          # Lines of code and project statistics
+│   ├── symbols.json         # Tree-sitter parsed imports, classes, and functions
+│   ├── architecture.json    # Evaluated architecture checkpoints and details
+│   ├── project_summary.json # High-level project summary overview
+│   └── knowledge.json       # Combined knowledge base payload
+└── embeddings/              # Local Vector Database
+    ├── index.bin            # FAISS vector index binary
+    └── documents.json       # Document text chunks, classifications, and symbol mappings
 ```
 
 ---
 
-# 📊 Current Progress
+## 🔌 API Endpoints
 
-| Module | Status |
-|---------|--------|
-| Backend Setup | ✅ Completed |
-| Upload Pipeline (ZIP) | ✅ Completed |
-| Workspace Manager | ✅ Completed |
-| Scanner | ✅ Completed |
-| Health Analysis | ✅ Completed |
-| Architecture Detection | ✅ Completed |
-| Python Tree-sitter | 🟡 In Progress |
-| AI Engine | 🔴 Not Started |
-| React Parser | 🔴 Planned |
-| GitHub Upload | 🔴 Planned |
-| Local Folder Upload | 🔴 Planned |
-
-Overall project completion:
-
-**≈ 40%**
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/projects/upload` | Upload a ZIP archive to initialize a workspace. |
+| `POST` | `/projects/upload-folder` | Ingest a project from an absolute path on the host system. |
+| `POST` | `/projects/upload-github` | Checkout and clone a remote GitHub repository. |
+| `POST` | `/projects/{id}/scan` | Scan files, analyze health metrics, and extract AST symbols. |
+| `POST` | `/projects/{id}/architecture` | Run the multi-signal registry-driven architecture detector. |
+| `POST` | `/projects/{id}/chat` | Ask technical questions about the codebase using local RAG. |
 
 ---
 
-# 🧠 Supported Languages
+## 📦 Installation & Running Locally
 
-Current:
+### 1. Prerequisite Checks
+* Python **3.12.x** installed.
+* [Ollama](https://ollama.com/) running locally with the `phi3:latest` model downloaded:
+  ```bash
+  ollama pull phi3:latest
+  ```
 
-- Python
-
-Planned:
-
-- JavaScript
-- TypeScript
-- React
-- Java
-- C++
-- Go
-- Rust
-
----
-
-# 🚀 Installation
-
-## 1. Clone Repository
-
+### 2. Clone and Setup Environment
 ```bash
 git clone <repository-url>
-
 cd CodeAtlas/backend
 ```
 
----
-
-## 2. Install Python
-
-Recommended:
-
-Python **3.12.x**
-
-Verify:
-
-```bash
-python --version
-```
-
----
-
-## 3. Install UV
-
-Windows:
-
+### 3. Install dependency manager `uv`
 ```bash
 pip install uv
 ```
 
-Verify:
-
-```bash
-uv --version
-```
-
----
-
-## 4. Create Virtual Environment
-
+### 4. Create and Sync Virtual Environment
 ```bash
 uv venv
-```
-
-Activate:
-
-Windows
-
-```powershell
+# On Windows PowerShell
 .venv\Scripts\activate
-```
 
----
-
-## 5. Install Dependencies
-
-```bash
+# Sync packages
 uv sync
 ```
 
----
-
-# ▶ Running the Backend
-
-From the backend folder:
-
+### 5. Start the API Server
 ```bash
-uv run uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload --port 8000
 ```
-
-Server starts at:
-
-```
-http://127.0.0.1:8000
-```
-
-Swagger Documentation:
-
-```
-http://127.0.0.1:8000/docs
-```
+* **API Address**: `http://127.0.0.1:8000`
+* **Swagger Documentation Docs**: `http://127.0.0.1:8000/docs`
 
 ---
 
-# 🖥 How to Use CodeAtlas
+## 📸 Screenshots Placeholders
 
-## Step 1
+### Ingestion & Scanning
+* **Repository Upload**: `[Screenshot Placeholder: upload_endpoints.png]`
+* **Architecture Detection**: `[Screenshot Placeholder: architecture_endpoints.png]`
 
-Start the backend.
-
-```bash
-uv run uvicorn app.main:app --reload
-```
-
----
-
-## Step 2
-
-Open Swagger.
-
-```
-http://127.0.0.1:8000/docs
-```
+### AI Chat & Developer Docs
+* **Swagger API UI**: `[Screenshot Placeholder: swagger_docs.png]`
+* **Chat Interface**: `[Screenshot Placeholder: rag_chat_interface.png]`
+* **Architecture Diagram**: `[Screenshot Placeholder: system_diagram.png]`
 
 ---
 
-## Step 3
+## 🛣 Roadmap
 
-Locate:
+### Completed Milestones
+* [x] **Ingestion Engine**: ZIP, Local Folder, and GitHub clone sources.
+* [x] **Ignore Safeguards**: Centralized path exclusion logic.
+* [x] **Repository Scanner**: Folder traversing, language detection, health audits.
+* [x] **AST Parser**: Tree-sitter indexing and symbol extraction.
+* [x] **Registry Architecture Detector**: Multi-signal scoring for backend/frontend/mobile/database layers.
+* [x] **On-Device RAG Pipeline**: SentenceTransformers embeddings, FAISS indexing, Ollama API connector.
+* [x] **Quality Guardrails**: Speculation scrubbing, database/framework alignment check, sentence-pruning fallback.
 
-```
-POST
-
-/projects/upload
-```
-
----
-
-## Step 4
-
-Click
-
-```
-Try it out
-```
+### Future Backlog
+* [ ] **Dependency Graph**: Generate imports-based module maps.
+* [ ] **Architecture Visualization**: Render interactive network graphics of layers.
+* [ ] **Multi-Language AST Parse**: Fully implement Tree-sitter parsers for TypeScript, Java, and Rust files.
+* [ ] **Automatic Code Review**: Highlight anti-patterns, duplicate logic blocks, and security flaws.
+* [ ] **Documentation Generator**: Auto-generate markdown wiki pages.
 
 ---
 
-## Step 5
+## 🤝 Contributing
 
-Select a ZIP file containing your project.
-
-Example:
-
-```
-VoyageOS.zip
-```
+Contributions are welcome. Please open an issue or submit a pull request for additional parser grammars, framework rules, or UI visual enhancements.
 
 ---
 
-## Step 6
+## 📄 License
 
-Execute.
-
-The backend automatically:
-
-- Creates a unique project ID
-- Creates a workspace
-- Stores project metadata
-- Extracts the ZIP
-- Ignores unnecessary folders (e.g. `.venv`, `.git`)
-- Stores project source files
-
----
-
-## Step 7
-
-Copy the returned Project ID.
-
-Example:
-
-```
-ae8a56da-413e-492a-b3fb-4ca738c71f0b
-```
-
----
-
-## Step 8
-
-Use the Project ID with analysis endpoints.
-
-Current available endpoints generate:
-
-- Project Scan
-- Health Report
-- Architecture Report
-
----
-
-## Step 9 (Current Development)
-
-Run the Tree-sitter parser to analyze Python files and extract:
-
-- Imports
-- Classes
-- Functions
-
-This functionality is currently tested using the included parser test script and will soon be available as an API endpoint.
-
----
-
-# 📁 Generated Output
-
-Current outputs:
-
-```
-metadata.json
-
-scan_result.json
-
-health.json
-
-architecture.json
-```
-
-Upcoming:
-
-```
-symbols.json
-
-dependency_graph.json
-
-embeddings.json
-```
-
----
-
-# 🛣 Roadmap
-
-### Phase 1
-
-- ZIP Upload
-- Scanner
-- Health
-- Architecture
-- Python Parser
-
-### Phase 2
-
-- Symbols API
-- Methods
-- Decorators
-- Async Functions
-
-### Phase 3
-
-- React Parser
-- JavaScript Support
-- GitHub Upload
-- Local Folder Upload
-
-### Phase 4
-
-- AI Assistant
-- Documentation Generator
-- Code Review
-- Architecture Visualization
-- RAG Search
-
----
-
-# 🤝 Contributing
-
-Contributions are welcome.
-
-Future improvements include:
-
-- Additional language support
-- Better architecture detection
-- Dependency graphs
-- AI enhancements
-- Performance optimizations
-
----
-
-# 📄 License
-
-MIT License
-
----
-
-# ⭐ Future Vision
-
-CodeAtlas aims to become an intelligent software understanding platform capable of analyzing complete software systems instead of individual files.
-
-The long-term goal is to allow developers to upload any repository and immediately understand:
-
-- Project architecture
-- Code organization
-- Dependencies
-- Design patterns
-- Technologies used
-- Documentation
-- Developer onboarding
-- AI-assisted code exploration
-
-Making software projects understandable in minutes instead of days.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

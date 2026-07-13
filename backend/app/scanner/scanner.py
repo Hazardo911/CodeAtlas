@@ -19,12 +19,39 @@ LANGUAGE_MAP = {
     ".yml": "YAML",
     ".yaml": "YAML",
     ".toml": "TOML",
+    ".html": "HTML",
+    ".htm": "HTML",
+    ".css": "CSS",
+    ".sql": "SQL",
+    ".xml": "XML",
+}
+
+SPECIAL_FILES = {
+    "dockerfile": "Dockerfile",
+    "requirements.txt": "Pip Requirements",
+    "package.json": "npm config",
+    "pom.xml": "Maven Config",
+    "build.gradle": "Gradle Config",
 }
 
 
 class Scanner:
+    """
+    Scans a project directory recursively, mapping files to programming languages
+    and extracting basic file metadata.
+    """
 
-    def scan(self, project_path: Path):
+    def scan(self, project_path: Path) -> dict:
+        """
+        Walks the directory and gathers statistics on files, directories, and languages.
+
+        Args:
+            project_path (Path): Path to the source directory to scan.
+
+        Returns:
+            dict: Summary containing total counts, file lists, and language statistics.
+        """
+        from app.utils.helpers import should_ignore_dir
 
         summary = {
             "total_files": 0,
@@ -35,38 +62,37 @@ class Scanner:
 
         language_counter = Counter()
 
-        for item in project_path.rglob("*"):
+        for root, dirs, files in project_path.walk():
+            # Prune directories in place to avoid traversing ignored folders
+            dirs[:] = [d for d in dirs if not should_ignore_dir(Path(d))]
 
-            if item.is_dir():
-                summary["total_directories"] += 1
-                continue
+            summary["total_directories"] += len(dirs)
 
-            summary["total_files"] += 1
+            for file in files:
+                item = root / file
+                summary["total_files"] += 1
+                relative_path = item.relative_to(project_path)
+                filename_lower = item.name.lower()
+                extension = item.suffix.lower()
 
-            relative_path = item.relative_to(project_path)
+                # Determine language based on special file names or extensions
+                if filename_lower in SPECIAL_FILES:
+                    language = SPECIAL_FILES[filename_lower]
+                else:
+                    language = LANGUAGE_MAP.get(extension, "Unknown")
 
-            extension = item.suffix.lower()
+                summary["files"].append(
+                    {
+                        "path": str(relative_path),
+                        "name": item.name,
+                        "extension": extension,
+                        "language": language,
+                        "size": item.stat().st_size,
+                    }
+                )
 
-            summary["files"].append(
-                {
-                    "path": str(relative_path),
-                    "name": item.name,
-                    "extension": extension,
-                    "language": LANGUAGE_MAP.get(
-                        extension,
-                        "Unknown"
-                    ),
-                    "size": item.stat().st_size,
-                }
-            )
-
-            extension = item.suffix.lower()
-
-            if extension in LANGUAGE_MAP:
-                language_counter[
-                    LANGUAGE_MAP[extension]
-                ] += 1
+                if language != "Unknown":
+                    language_counter[language] += 1
 
         summary["languages"] = dict(language_counter)
-
         return summary
