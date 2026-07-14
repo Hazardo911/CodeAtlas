@@ -1,0 +1,13 @@
+.shiny-text {
+  display: block;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shiny-text {
+    background-position: 0 center !important;
+  }
+}

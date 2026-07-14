@@ -1,0 +1,11 @@
+.lightfall-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+.lightfall-container canvas {
+  opacity: 0.9;
+}
