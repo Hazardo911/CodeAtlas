@@ -1,6 +1,7 @@
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
 import shutil
+from urllib.parse import urlparse
 
 from fastapi import UploadFile
 
@@ -12,6 +13,7 @@ from app.utils.helpers import (
     save_upload_file,
     find_project_root,
     copy_folder_contents,
+    should_ignore_dir,
 )
 
 from app.services.scanner_service import ScannerService
@@ -20,6 +22,7 @@ from app.services.parser_service import ParserService
 from app.utils.constants import (
     ProjectStatus,
     ProjectSource,
+    IGNORE_FILES,
 )
 
 
@@ -148,6 +151,7 @@ class ProjectService:
             source_type=ProjectSource.FILES,
         )
         source = project["source"]
+        written_files = 0
 
         try:
             for upload, raw_path in zip(files, relative_paths):
@@ -161,9 +165,17 @@ class ProjectService:
                 if not repository_parts:
                     continue
 
+                relative_path = Path(*repository_parts)
+                if relative_path.name in IGNORE_FILES or should_ignore_dir(relative_path):
+                    continue
+
                 destination = source.joinpath(*repository_parts)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 await save_upload_file(upload, destination)
+                written_files += 1
+
+            if written_files == 0:
+                raise ValueError("No supported repository files were uploaded.")
         except Exception:
             shutil.rmtree(project["workspace"], ignore_errors=True)
             raise
@@ -197,6 +209,14 @@ class ProjectService:
         """
         Ingests a project by cloning a public GitHub repository.
         """
+        repo_url = repo_url.strip()
+        parsed = urlparse(repo_url)
+        path_parts = [part for part in parsed.path.split("/") if part]
+        if parsed.scheme != "https" or parsed.hostname != "github.com" or len(path_parts) != 2:
+            raise ValueError(
+                "Enter a public GitHub repository URL such as https://github.com/owner/repo."
+            )
+
         url_clean = repo_url.rstrip("/")
         if url_clean.endswith(".git"):
             url_clean = url_clean[:-4]

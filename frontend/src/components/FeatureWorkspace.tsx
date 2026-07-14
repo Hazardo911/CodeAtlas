@@ -1,5 +1,5 @@
-import { lazy, Suspense, useState } from 'react'
-import { askProject, type ProjectAnalysis } from '../api/codeAtlas'
+import { lazy, Suspense, useMemo, useState } from 'react'
+import { askProject, getAiStatus, type ChatSource, type ProjectAnalysis } from '../api/codeAtlas'
 import './FeatureWorkspace.css'
 import './Integration.css'
 import WhatIfSimulator from './WhatIfSimulator'
@@ -9,22 +9,43 @@ const ProjectGalaxy = lazy(() => import('./ProjectGalaxy'))
 export type WorkspaceView =
   'architecture' | 'galaxy' | 'simulator' | 'onboarding' | 'health' | 'chat'
 
-const views: Array<{ id: WorkspaceView; label: string; eyebrow: string }> = [
-  { id: 'architecture', label: 'Architecture', eyebrow: 'SYSTEM MAP' },
-  { id: 'galaxy', label: 'Galaxy', eyebrow: '3D EXPLORER' },
-  { id: 'simulator', label: 'What-If', eyebrow: 'IMPACT LAB' },
-  { id: 'onboarding', label: 'Onboarding', eyebrow: 'GUIDED TOUR' },
-  { id: 'health', label: 'Health', eyebrow: 'PROJECT SIGNALS' },
-  { id: 'chat', label: 'AI Chat', eyebrow: 'LOCAL ASSISTANT' },
+const views: Array<{
+  id: WorkspaceView
+  label: string
+  eyebrow: string
+  capability: 'live' | 'derived' | 'preview'
+}> = [
+  { id: 'architecture', label: 'Architecture', eyebrow: 'DETECTION', capability: 'live' },
+  { id: 'galaxy', label: 'Galaxy', eyebrow: 'STRUCTURE MAP', capability: 'derived' },
+  { id: 'simulator', label: 'What-If', eyebrow: 'CONCEPT', capability: 'preview' },
+  { id: 'onboarding', label: 'Onboarding', eyebrow: 'SCAN GUIDE', capability: 'derived' },
+  { id: 'health', label: 'Repository', eyebrow: 'REAL METRICS', capability: 'live' },
+  { id: 'chat', label: 'AI Chat', eyebrow: 'LOCAL RAG', capability: 'live' },
 ]
 
-const chatAnswers: Record<string, string> = {
-  'Where does authentication start?':
-    'Authentication enters through web/middleware/auth.ts, validates the session in auth/session.ts, then attaches the user context before protected routes execute.',
-  'What is the safest module to change?':
-    'The shared formatting utilities have only two dependents and full test coverage. They are the lowest-risk place for an isolated first contribution.',
-  'Explain the checkout flow':
-    'The web client creates a checkout request, the API validates inventory, core calculates totals, and the worker confirms payment before the order is persisted.',
+const previewAnswers: Record<string, string> = {
+  'Give me a project overview':
+    'Upload a repository to generate a grounded overview from its scanned files and detected architecture.',
+  'Which frameworks are detected?':
+    'Framework detection becomes available after the local backend analyzes project manifests and imports.',
+  'Where should I start reading?':
+    'Upload a repository and CodeAtlas will surface manifests, README files, entry points, and large files.',
+}
+
+const formatBytes = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function EmptyProject({ title, copy }: { title: string; copy: string }) {
+  return (
+    <div className="workspace-empty">
+      <span>CA</span>
+      <h3>{title}</h3>
+      <p>{copy}</p>
+    </div>
+  )
 }
 
 export default function FeatureWorkspace({
@@ -35,25 +56,63 @@ export default function FeatureWorkspace({
   project?: ProjectAnalysis | null
 }) {
   const [view, setView] = useState<WorkspaceView>(initialView)
-  const [completed, setCompleted] = useState([true, false, false, false])
-  const [question, setQuestion] = useState('Where does authentication start?')
+  const [completed, setCompleted] = useState<boolean[]>([])
+  const [question, setQuestion] = useState('Give me a project overview')
   const [answer, setAnswer] = useState(
-    project ? 'Ask a question to query the local project index.' : chatAnswers[question],
+    project
+      ? 'Ask a question to search the local project index.'
+      : previewAnswers['Give me a project overview'],
   )
+  const [sources, setSources] = useState<ChatSource[]>([])
   const [chatLoading, setChatLoading] = useState(false)
-  const projectName = project?.metadata.project_name || 'commerce-platform'
-  const totalFiles = project?.scan.scan.total_files || 128
-  const languages = Object.keys(project?.scan.scan.languages || {})
-  const frameworks = project?.architecture.frameworks || []
+  const [aiStatus, setAiStatus] = useState(project?.aiStatus)
+
+  const projectName = project?.metadata.project_name || 'No repository loaded'
+  const scan = project?.scan.scan
+  const metrics = project?.scan.health
+  const architecture = project?.architecture
+  const files = useMemo(() => scan?.files || [], [scan])
+  const languages = Object.entries(scan?.languages || {}).sort((a, b) => b[1] - a[1])
+  const architectureSignals = Object.entries(architecture?.details || {})
+  const detectedLayers = architectureSignals.filter(([, detail]) => detail.detected)
+  const aiReady = Boolean(aiStatus?.available && aiStatus.model_available)
+
+  const learningFiles = useMemo(() => {
+    const priority = [
+      files.find((file) => /^readme/i.test(file.name)),
+      files.find((file) =>
+        /^(package\.json|pyproject\.toml|requirements\.txt|pom\.xml)$/i.test(file.name),
+      ),
+      files.find((file) =>
+        /(^|\/)(main|index|app)\.(py|tsx?|jsx?|java|go|rs)$/i.test(file.path.replace(/\\/g, '/')),
+      ),
+      [...files].sort((a, b) => b.size - a.size)[0],
+    ].filter(Boolean)
+    return priority.filter(
+      (file, index) => priority.findIndex((item) => item?.path === file?.path) === index,
+    )
+  }, [files])
+
   const ask = async (nextQuestion: string) => {
     setQuestion(nextQuestion)
+    setSources([])
     if (!project) {
-      setAnswer(chatAnswers[nextQuestion] || 'Load a repository to ask a custom question.')
+      setAnswer(previewAnswers[nextQuestion] || 'Upload a repository to ask a custom question.')
+      return
+    }
+    if (!aiReady) {
+      setAnswer(
+        aiStatus?.available
+          ? `${aiStatus.provider} is running, but ${aiStatus.model} is not installed. Run "ollama pull ${aiStatus.model}" to enable answers.`
+          : `The repository is analyzed, but ${aiStatus?.provider || 'Ollama'} is offline. Install it and pull ${aiStatus?.model || 'phi3:latest'} to enable local AI answers.`,
+      )
       return
     }
     setChatLoading(true)
     try {
-      setAnswer(await askProject(project.metadata.project_id, nextQuestion))
+      const response = await askProject(project.metadata.project_id, nextQuestion)
+      setAnswer(response.answer)
+      setSources(response.sources || [])
     } catch (reason) {
       setAnswer(reason instanceof Error ? reason.message : 'The local AI could not answer.')
     } finally {
@@ -83,17 +142,17 @@ export default function FeatureWorkspace({
                 <small>{item.eyebrow}</small>
                 <b>{item.label}</b>
               </span>
-              <em>→</em>
+              <em>{item.capability === 'preview' ? 'Preview' : '→'}</em>
             </button>
           ))}
         </nav>
         <div className="workspace-local">
           <i />
           <span>
-            <b>{project ? 'Local analysis loaded' : 'Local preview ready'}</b>
+            <b>{project ? 'Local analysis loaded' : 'Demo workspace'}</b>
             <small>
               {project
-                ? `${totalFiles} files · ${languages.length} languages`
+                ? `${scan?.total_files || 0} files · ${languages.length} languages`
                 : 'Upload a repository for live data'}
             </small>
           </span>
@@ -101,20 +160,75 @@ export default function FeatureWorkspace({
       </aside>
 
       <section className="workspace-canvas">
+        {view === 'architecture' &&
+          (project && architecture ? (
+            <div className="architecture-view live-architecture">
+              <header>
+                <div>
+                  <small>BACKEND ARCHITECTURE DETECTOR</small>
+                  <h3>{projectName} architecture signals</h3>
+                  <p>
+                    Evidence comes from repository paths, manifests, imports, and known file
+                    patterns.
+                  </p>
+                </div>
+                <span>{detectedLayers.length} detected areas</span>
+              </header>
+              <div className="detection-grid">
+                {architectureSignals.map(([name, detail]) => (
+                  <article className={detail.detected ? 'detected' : ''} key={name}>
+                    <div>
+                      <small>{detail.detected ? 'DETECTED' : 'NOT DETECTED'}</small>
+                      <b>{name.replace('_', ' ')}</b>
+                    </div>
+                    <span className={`confidence-${detail.confidence.toLowerCase()}`}>
+                      {detail.confidence} confidence
+                    </span>
+                    <p>
+                      {detail.matched_signals.slice(0, 3).join(' · ') ||
+                        'No matching evidence found'}
+                    </p>
+                  </article>
+                ))}
+              </div>
+              <div className="framework-strip">
+                <small>DETECTED FRAMEWORKS</small>
+                <div>
+                  {architecture.frameworks.length ? (
+                    architecture.frameworks.map((framework) => (
+                      <span key={framework}>{framework}</span>
+                    ))
+                  ) : (
+                    <p>No registered framework was detected.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <EmptyProject
+              title="Upload a repository to detect its architecture"
+              copy="The live detector checks manifests, imports, paths, and framework signals."
+            />
+          ))}
+
         {view === 'galaxy' && (
           <div className="workspace-full-view">
             <header>
               <div>
-                <small>PROJECT GALAXY</small>
-                <h3>Explore the living architecture</h3>
-                <p>Orbit modules, isolate layers, and focus dependency paths.</p>
+                <small>{project ? 'LIVE 3D REPOSITORY MAP' : 'INTERACTIVE CONCEPT'}</small>
+                <h3>
+                  {project ? 'Explore your codebase in 3D' : 'Explore the Galaxy interaction'}
+                </h3>
+                <p>
+                  {project
+                    ? 'Planets are generated from scanned folders and files. Current links show containment; code dependency links arrive with graph extraction.'
+                    : 'This demo illustrates the planned dependency experience.'}
+                </p>
               </div>
-              <span>Interactive 3D</span>
+              <span>{project ? 'Interactive · Scan-derived' : 'Demo data'}</span>
             </header>
-            <Suspense
-              fallback={<div className="workspace-loading">Initializing 3D architecture…</div>}
-            >
-              <ProjectGalaxy />
+            <Suspense fallback={<div className="workspace-loading">Initializing 3D galaxy…</div>}>
+              <ProjectGalaxy project={project || undefined} />
             </Suspense>
           </div>
         )}
@@ -124,282 +238,200 @@ export default function FeatureWorkspace({
             <header>
               <div>
                 <small>WHAT-IF SIMULATOR</small>
-                <h3>Model impact before the commit</h3>
-                <p>Explore how architectural changes propagate through the project.</p>
+                <h3>Impact analysis is not implemented in the backend yet</h3>
+                <p>
+                  The current backend graph endpoint returns no dependency edges, so live
+                  blast-radius results would be misleading.
+                </p>
               </div>
-              <span>Local preview</span>
+              <span>Concept preview</span>
             </header>
             <WhatIfSimulator />
           </div>
         )}
 
-        {view === 'architecture' && (
-          <div className="architecture-view">
-            <header>
-              <div>
-                <small>ARCHITECTURE MAP</small>
-                <h3>{project ? `${projectName} overview` : 'Request-to-data flow'}</h3>
-                <p>
-                  {project
-                    ? `${frameworks.length ? frameworks.join(', ') : 'Framework-neutral'} architecture detected across ${languages.join(', ') || 'the repository'}.`
-                    : 'Follow responsibilities across every layer without opening a file.'}
-                </p>
-              </div>
-              <span>
-                {totalFiles} files · {languages.length || 4} languages
-              </span>
-            </header>
-            <div className="architecture-flow">
-              <div className="flow-layer">
-                <small>INTERFACE</small>
-                <button className="teal active">
-                  <i>WEB</i>
-                  <b>Web client</b>
-                  <em>38 files</em>
-                </button>
-                <button className="teal">
-                  <i>CLI</i>
-                  <b>Developer CLI</b>
-                  <em>11 files</em>
-                </button>
-              </div>
-              <div className="flow-arrows">
-                <i>→</i>
-                <i>→</i>
-              </div>
-              <div className="flow-layer">
-                <small>SERVICES</small>
-                <button className="amber">
-                  <i>API</i>
-                  <b>API gateway</b>
-                  <em>31 files</em>
-                </button>
-                <button className="amber">
-                  <i>AU</i>
-                  <b>Authentication</b>
-                  <em>19 files</em>
-                </button>
-              </div>
-              <div className="flow-arrows">
-                <i>→</i>
-                <i>→</i>
-              </div>
-              <div className="flow-layer">
-                <small>DOMAIN</small>
-                <button>
-                  <i>CO</i>
-                  <b>Core logic</b>
-                  <em>52 files</em>
-                </button>
-                <button>
-                  <i>SH</i>
-                  <b>Shared types</b>
-                  <em>27 files</em>
-                </button>
-              </div>
-              <div className="flow-arrows">
-                <i>→</i>
-                <i>→</i>
-              </div>
-              <div className="flow-layer">
-                <small>DATA</small>
-                <button className="coral">
-                  <i>DB</i>
-                  <b>Database</b>
-                  <em>16 files</em>
-                </button>
-                <button className="coral">
-                  <i>CA</i>
-                  <b>Cache</b>
-                  <em>8 files</em>
-                </button>
-              </div>
-            </div>
-            <div className="architecture-insight">
-              <span>✦</span>
-              <div>
-                <small>ARCHITECTURE INSIGHT</small>
-                <p>
-                  <b>Authentication is a high-impact boundary.</b> Seven protected routes and three
-                  services depend on its session contract.
-                </p>
-              </div>
-              <button onClick={() => setView('chat')}>Ask about this →</button>
-            </div>
-          </div>
-        )}
-
-        {view === 'onboarding' && (
-          <div className="onboarding-view">
-            <header>
-              <div>
-                <small>AI ONBOARDING</small>
-                <h3>Your first 30 minutes</h3>
-                <p>A guided path through the concepts and files that matter most.</p>
-              </div>
-              <span>{completed.filter(Boolean).length}/4 complete</span>
-            </header>
-            <div className="onboarding-grid">
-              <div className="learning-path">
-                {[
-                  [
-                    'Project shape',
-                    'Understand apps, packages, and entry points',
-                    'README.md · package.json',
-                    '6 min',
-                  ],
-                  [
-                    'Request lifecycle',
-                    'Trace one request from web to database',
-                    'api/router.ts · core/order.ts',
-                    '9 min',
-                  ],
-                  [
-                    'Identity model',
-                    'Learn sessions, roles, and route guards',
-                    'auth/session.ts · middleware.ts',
-                    '8 min',
-                  ],
-                  [
-                    'Make a safe change',
-                    'Update an isolated utility with tests',
-                    'shared/format.ts · format.test.ts',
-                    '7 min',
-                  ],
-                ].map(([title, copy, files, time], index) => (
-                  <button
-                    className={completed[index] ? 'done' : ''}
-                    onClick={() =>
-                      setCompleted((items) => items.map((item, i) => (i === index ? !item : item)))
-                    }
-                    key={title}
-                  >
-                    <i>{completed[index] ? '✓' : index + 1}</i>
-                    <span>
-                      <b>{title}</b>
-                      <p>{copy}</p>
-                      <em>{files}</em>
-                    </span>
-                    <small>{time}</small>
-                  </button>
-                ))}
-              </div>
-              <aside className="onboarding-summary">
-                <small>CODEBASE BRIEF</small>
-                <h4>Commerce Platform</h4>
-                <p>
-                  A modular TypeScript platform with a React storefront, API gateway, background
-                  workers, and shared domain core.
-                </p>
-                <dl>
-                  <dt>Start here</dt>
-                  <dd>apps/web/src/main.tsx</dd>
-                  <dt>Core concept</dt>
-                  <dd>Order lifecycle</dd>
-                  <dt>Risk area</dt>
-                  <dd>Auth session contract</dd>
-                  <dt>Good first issue</dt>
-                  <dd>Shared date formatter</dd>
-                </dl>
-              </aside>
-            </div>
-          </div>
-        )}
-
-        {view === 'health' && (
-          <div className="health-view">
-            <header>
-              <div>
-                <small>PROJECT HEALTH</small>
-                <h3>Strong foundation, two hotspots</h3>
-                <p>Prioritized signals instead of another wall of metrics.</p>
-              </div>
-              <span className="health-score">
-                82<small>/100</small>
-              </span>
-            </header>
-            <div className="health-metrics">
-              {[
-                ['Maintainability', '88', 'Healthy'],
-                ['Test coverage', '76%', 'Watch'],
-                ['Dependency risk', 'Low', 'Healthy'],
-                ['Complexity', '7.4', 'Watch'],
-              ].map(([label, value, state]) => (
-                <article key={label}>
-                  <small>{label}</small>
-                  <b>{value}</b>
-                  <span className={state === 'Watch' ? 'watch' : ''}>
-                    <i />
-                    {state}
-                  </span>
-                </article>
-              ))}
-            </div>
-            <div className="health-content">
-              <div className="risk-list">
-                <small>PRIORITIZED FINDINGS</small>
-                <article>
-                  <i className="critical">01</i>
-                  <div>
-                    <b>Checkout service is doing too much</b>
-                    <p>
-                      Four responsibilities and 19 incoming dependencies make changes expensive.
-                    </p>
-                    <span>core/checkout.ts · complexity 18</span>
-                  </div>
-                  <em>High</em>
-                </article>
-                <article>
-                  <i className="warning">02</i>
-                  <div>
-                    <b>Authentication tests miss expiry paths</b>
-                    <p>Session refresh and revoked-token branches have no direct coverage.</p>
-                    <span>auth/session.test.ts · 4 paths</span>
-                  </div>
-                  <em>Medium</em>
-                </article>
-                <article>
-                  <i>03</i>
-                  <div>
-                    <b>Two packages can be upgraded safely</b>
-                    <p>Patch updates have no API changes across current usage.</p>
-                    <span>package.json · low blast radius</span>
-                  </div>
-                  <em>Low</em>
-                </article>
-              </div>
-              <aside className="health-trend">
-                <small>HEALTH TREND</small>
-                <div className="trend-bars">
-                  {[48, 55, 52, 64, 61, 72, 76, 82].map((height, index) => (
-                    <i key={index} style={{ height: `${height}%` }} />
-                  ))}
+        {view === 'onboarding' &&
+          (project ? (
+            <div className="onboarding-view">
+              <header>
+                <div>
+                  <small>SCAN-DERIVED READING GUIDE</small>
+                  <h3>Start with the files the backend can verify</h3>
+                  <p>
+                    This guide uses filenames and sizes only; it does not pretend to be AI-generated
+                    onboarding.
+                  </p>
                 </div>
                 <span>
-                  <b>+12</b> points this month
+                  {completed.filter(Boolean).length}/{learningFiles.length} reviewed
                 </span>
-                <p>Coverage and circular-dependency cleanup drove the improvement.</p>
-              </aside>
+              </header>
+              <div className="onboarding-grid">
+                <div className="learning-path">
+                  {learningFiles.map(
+                    (file, index) =>
+                      file && (
+                        <button
+                          className={completed[index] ? 'done' : ''}
+                          onClick={() =>
+                            setCompleted((items) =>
+                              learningFiles.map((_, itemIndex) =>
+                                itemIndex === index ? !items[itemIndex] : Boolean(items[itemIndex]),
+                              ),
+                            )
+                          }
+                          key={file.path}
+                        >
+                          <i>{completed[index] ? '✓' : index + 1}</i>
+                          <span>
+                            <b>{file.name}</b>
+                            <p>{file.path}</p>
+                            <em>{file.language}</em>
+                          </span>
+                          <small>{formatBytes(file.size)}</small>
+                        </button>
+                      ),
+                  )}
+                </div>
+                <aside className="onboarding-summary">
+                  <small>VERIFIED PROJECT BRIEF</small>
+                  <h4>{projectName}</h4>
+                  <p>
+                    {scan?.total_files} files across {scan?.total_directories} directories.
+                  </p>
+                  <dl>
+                    <dt>Primary language</dt>
+                    <dd>{languages[0]?.[0] || 'Unknown'}</dd>
+                    <dt>Frameworks</dt>
+                    <dd>{architecture?.frameworks.join(', ') || 'None detected'}</dd>
+                    <dt>Largest file</dt>
+                    <dd>{metrics?.health.largest_file?.path || 'None'}</dd>
+                    <dt>Symbols</dt>
+                    <dd>Python extraction only</dd>
+                  </dl>
+                </aside>
+              </div>
             </div>
-          </div>
-        )}
+          ) : (
+            <EmptyProject
+              title="No onboarding data yet"
+              copy="Upload a repository to generate a verified reading guide from its scan."
+            />
+          ))}
+
+        {view === 'health' &&
+          (project && metrics ? (
+            <div className="health-view live-health">
+              <header>
+                <div>
+                  <small>BACKEND REPOSITORY METRICS</small>
+                  <h3>Measured inventory, without invented scores</h3>
+                  <p>
+                    The backend currently measures file counts and sizes; it does not calculate
+                    coverage, complexity, or maintainability.
+                  </p>
+                </div>
+                <span className="metric-badge">
+                  {metrics.summary.total_files}
+                  <small> files</small>
+                </span>
+              </header>
+              <div className="health-metrics">
+                <article>
+                  <small>Directories</small>
+                  <b>{metrics.summary.total_directories}</b>
+                  <span>
+                    <i />
+                    Scanned
+                  </span>
+                </article>
+                <article>
+                  <small>Total size</small>
+                  <b>{formatBytes(metrics.summary.total_size)}</b>
+                  <span>
+                    <i />
+                    Measured
+                  </span>
+                </article>
+                <article>
+                  <small>Average file</small>
+                  <b>{formatBytes(metrics.health.average_file_size)}</b>
+                  <span>
+                    <i />
+                    Measured
+                  </span>
+                </article>
+                <article>
+                  <small>Empty files</small>
+                  <b>{metrics.health.empty_files.length}</b>
+                  <span className={metrics.health.empty_files.length ? 'watch' : ''}>
+                    <i />
+                    {metrics.health.empty_files.length ? 'Review' : 'None'}
+                  </span>
+                </article>
+              </div>
+              <div className="repository-breakdown">
+                <section>
+                  <small>LANGUAGE DISTRIBUTION</small>
+                  {languages.map(([language, count]) => (
+                    <div key={language}>
+                      <b>{language}</b>
+                      <span>{count} files</span>
+                      <i
+                        style={{
+                          width: `${Math.max(8, (count / (languages[0]?.[1] || 1)) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  ))}
+                </section>
+                <section>
+                  <small>LARGEST SCANNED FILES</small>
+                  {[...files]
+                    .sort((a, b) => b.size - a.size)
+                    .slice(0, 6)
+                    .map((file) => (
+                      <div key={file.path}>
+                        <b>{file.path}</b>
+                        <span>{formatBytes(file.size)}</span>
+                      </div>
+                    ))}
+                </section>
+              </div>
+            </div>
+          ) : (
+            <EmptyProject
+              title="No repository metrics yet"
+              copy="Upload a repository to see measured file, directory, size, and language data."
+            />
+          ))}
 
         {view === 'chat' && (
           <div className="chat-view">
             <header>
               <div>
-                <small>AI CHAT</small>
-                <h3>Ask the codebase, not the internet</h3>
-                <p>Answers are grounded in project files and architecture context.</p>
+                <small>PROJECT-GROUNDED RAG</small>
+                <h3>Ask the uploaded codebase</h3>
+                <p>
+                  Retrieval uses the backend knowledge index; generation requires the configured
+                  local Ollama model.
+                </p>
               </div>
-              <span>
-                <i /> Local preview
+              <span className={aiReady ? '' : 'offline'}>
+                <i />
+                {project
+                  ? aiReady
+                    ? `${aiStatus?.model || 'Local model'} ready`
+                    : aiStatus?.available
+                      ? `${aiStatus?.model || 'Configured model'} missing`
+                      : 'Ollama offline'
+                  : 'Demo mode'}
               </span>
             </header>
             <div className="chat-layout">
               <aside>
                 <small>SUGGESTED QUESTIONS</small>
-                {Object.keys(chatAnswers).map((item) => (
+                {Object.keys(previewAnswers).map((item) => (
                   <button
                     className={question === item ? 'active' : ''}
                     onClick={() => ask(item)}
@@ -418,8 +450,30 @@ export default function FeatureWorkspace({
                 <div className="chat-answer">
                   <span>CA</span>
                   <div>
-                    <small>CODEATLAS · {project ? 'LOCAL RAG' : 'PREVIEW ANSWER'}</small>
-                    <p>{chatLoading ? 'Searching the local project index…' : answer}</p>
+                    <small>CODEATLAS · {project ? 'BACKEND RESPONSE' : 'PREVIEW'}</small>
+                    <p>
+                      {chatLoading
+                        ? 'Building grounded context and running Phi-3 locally… The first answer can take a minute on CPU.'
+                        : answer}
+                    </p>
+                    {sources.length > 0 && (
+                      <div className="chat-sources">
+                        <b>Sources</b>
+                        {sources
+                          .filter((source) => source.file)
+                          .map((source, index) => (
+                            <span key={`${source.file}-${index}`}>
+                              {source.file}
+                              {source.line_start && source.line_end
+                                ? `:${source.line_start}-${source.line_end}`
+                                : ''}
+                              {typeof source.score === 'number'
+                                ? ` · ${source.score.toFixed(2)}`
+                                : ''}
+                            </span>
+                          ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <form
@@ -433,12 +487,30 @@ export default function FeatureWorkspace({
                 >
                   <input
                     name="question"
-                    placeholder="Ask another question about this repository…"
+                    placeholder={
+                      aiReady ? 'Ask about this repository…' : 'Ollama is required for live answers'
+                    }
+                    disabled={Boolean(project && !aiReady)}
                   />
-                  <button type="submit" disabled={chatLoading}>
+                  <button type="submit" disabled={chatLoading || Boolean(project && !aiReady)}>
                     ↑
                   </button>
                 </form>
+                {project && !aiReady && (
+                  <button
+                    className="ai-recheck"
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        setAiStatus(await getAiStatus())
+                      } catch {
+                        setAnswer('The local backend is not reachable.')
+                      }
+                    }}
+                  >
+                    Recheck local AI status
+                  </button>
+                )}
               </div>
             </div>
           </div>

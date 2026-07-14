@@ -78,7 +78,11 @@ def _clean_speculative_language(text: str) -> str:
     for phrase, rep in replacements.items():
         pattern = re.compile(r'\b' + re.escape(phrase) + r'\b', re.IGNORECASE)
         cleaned = pattern.sub(rep, cleaned)
-    return re.sub(r'\s+', ' ', cleaned).strip()
+    # Preserve section and paragraph breaks for the chat UI while normalizing
+    # accidental runs of spaces produced by small local models.
+    cleaned = re.sub(r'[^\S\r\n]+', ' ', cleaned)
+    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+    return cleaned.strip()
 
 
 def _validate_and_filter_answer(answer: str, verified_evidence: Dict[str, List[str]]) -> tuple[str, set[str], set[str]]:
@@ -235,16 +239,24 @@ class ChatService:
             answer = "I could not find evidence for this in the uploaded project."
 
         # 6. Format richer sources metadata
-        sources_meta: List[Dict[str, Any]] = []
+        sources_by_file: Dict[str, Dict[str, Any]] = {}
         for doc in retrieved_docs:
             if doc.get("type") == "project_overview":
                 continue
-            sources_meta.append({
-                "file": doc.get("file_path"),
-                "score": doc.get("score")
-            })
+            file_path = doc.get("file_path")
+            if not file_path:
+                continue
+            candidate = {
+                "file": file_path,
+                "score": doc.get("score"),
+                "line_start": doc.get("line_start"),
+                "line_end": doc.get("line_end"),
+            }
+            existing = sources_by_file.get(file_path)
+            if existing is None or (candidate["score"] or 0) > (existing["score"] or 0):
+                sources_by_file[file_path] = candidate
 
         return {
             "answer": answer,
-            "sources": sources_meta
+            "sources": list(sources_by_file.values())
         }

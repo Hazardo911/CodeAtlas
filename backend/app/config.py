@@ -12,6 +12,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 WORKSPACE_DIR = BASE_DIR / "workspace"
 DATA_DIR = BASE_DIR / "data"
 
+# SQLite and project ingestion require these local runtime directories. Creating
+# them during configuration keeps a fresh clone runnable without manual setup.
+WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
 UPLOAD_DIR = WORKSPACE_DIR / "uploads"
 REPOSITORY_DIR = WORKSPACE_DIR / "repositories"
 
@@ -33,4 +38,11 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 # RAG Quality Configuration
 MIN_SIMILARITY_SCORE = float(os.getenv("MIN_SIMILARITY_SCORE", "0.40"))
-MAX_PROMPT_CHARS = int(os.getenv("MAX_PROMPT_CHARS", "40000"))
+# Phi-3 runs with a 4K context on the default local Ollama setup. Keeping the
+# grounded prompt compact materially improves CPU generation latency.
+MAX_PROMPT_CHARS = int(os.getenv("MAX_PROMPT_CHARS", "9000"))
+AI_SOURCE_CHUNK_CHARS = int(os.getenv("AI_SOURCE_CHUNK_CHARS", "6000"))
+AI_SOURCE_CHUNK_OVERLAP = int(os.getenv("AI_SOURCE_CHUNK_OVERLAP", "400"))
+AI_MAX_SOURCE_FILE_BYTES = int(os.getenv("AI_MAX_SOURCE_FILE_BYTES", "524288"))
+AI_MAX_CHUNKS_PER_FILE = int(os.getenv("AI_MAX_CHUNKS_PER_FILE", "8"))
+AI_MAX_INDEX_DOCUMENTS = int(os.getenv("AI_MAX_INDEX_DOCUMENTS", "2500"))

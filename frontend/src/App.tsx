@@ -126,33 +126,41 @@ const trust = [
   ['code', 'Open Source', 'Built for developers, by developers.'],
 ] as const
 const steps = [
-  ['folder', 'Upload', 'Drag & drop your repo. 100% local processing.'],
-  ['branch', 'Analyze', 'We parse, map and understand your entire project.'],
-  ['graph', 'Visualize', 'Explore interactive graphs, dependencies and modules.'],
-  ['chat', 'Ask & Simulate', 'Ask questions, simulate changes and get insights.'],
+  ['folder', 'Upload', 'Copy a selected repository into the local backend workspace.'],
+  ['branch', 'Analyze', 'Scan files, languages, Python symbols, and architecture signals.'],
+  ['graph', 'Explore', 'Review detected architecture, repository areas, and measured metrics.'],
+  ['chat', 'Ask', 'Query the project index with an optional local Ollama model.'],
 ] as const
 const features = [
   [
     'graph',
     'Architecture Map',
-    'Auto-generate a detailed architecture diagram of your entire codebase.',
+    'Detect backend, frontend, API, database, testing, AI, and deployment signals.',
+  ],
+  ['spark', 'Project Galaxy', 'Explore a scan-derived map of top-level repository areas.'],
+  [
+    'health',
+    'What-if Preview',
+    'Explore the planned impact workflow; the backend engine is not implemented yet.',
   ],
   [
-    'spark',
-    'Project Galaxy',
-    'Visualize modules and their relationships in an interactive galaxy.',
+    'ai',
+    'Reading Guide',
+    'Start with verified manifests, entry points, README files, and large files.',
   ],
-  ['health', 'What-if Simulator', 'Simulate changes and see the impact before you touch the code.'],
-  ['ai', 'AI Onboarding', 'Get up to speed with any codebase in minutes, not hours.'],
-  ['shield', 'Project Health', 'Get a health score and insights on maintainability and risks.'],
-  ['chat', 'AI Chat', 'Ask anything about your codebase, powered by local LLMs.'],
+  [
+    'shield',
+    'Repository Metrics',
+    'Inspect real file, folder, size, empty-file, and language measurements.',
+  ],
+  ['chat', 'AI Chat', 'Ask grounded questions when the local Ollama runtime is available.'],
 ] as const
 const featureViews: Record<string, WorkspaceView> = {
   'Architecture Map': 'architecture',
   'Project Galaxy': 'galaxy',
-  'What-if Simulator': 'simulator',
-  'AI Onboarding': 'onboarding',
-  'Project Health': 'health',
+  'What-if Preview': 'simulator',
+  'Reading Guide': 'onboarding',
+  'Repository Metrics': 'health',
   'AI Chat': 'chat',
 }
 
@@ -240,9 +248,9 @@ function App() {
           <div className="dashboard-context">
             <span>
               <i />
-              LOCAL PREVIEW
+              {project ? 'LOCAL ANALYSIS' : 'DEMO WORKSPACE'}
             </span>
-            <b>{project?.metadata.project_name || 'commerce-platform'}</b>
+            <b>{project?.metadata.project_name || 'Feature preview'}</b>
           </div>
           <button className="dashboard-exit" onClick={() => setDashboardOpen(false)}>
             ← Back to home
@@ -386,7 +394,7 @@ function App() {
       </section>
       <section className="section galaxy-story" id="galaxy">
         <Heading
-          eyebrow="PROJECT GALAXY"
+          eyebrow="PROJECT GALAXY · CONCEPT PREVIEW"
           title={
             <>
               See How Your Code
@@ -395,7 +403,8 @@ function App() {
             </>
           }
         >
-          Explore modules, services, and dependencies as a living map of your software.
+          Try the 3D interaction here. Uploaded projects use a truthful folder topology until the
+          backend dependency graph is implemented.
         </Heading>
         <div className="reveal">
           <Suspense
@@ -412,7 +421,7 @@ function App() {
       </section>
       <section className="section simulator-section" id="simulator">
         <Heading
-          eyebrow="WHAT-IF SIMULATOR"
+          eyebrow="WHAT-IF SIMULATOR · CONCEPT PREVIEW"
           title={
             <>
               Know the impact
@@ -421,8 +430,8 @@ function App() {
             </>
           }
         >
-          Model architectural changes against the project map and reveal what could break before
-          touching the code.
+          Preview the intended impact-analysis experience. Results below are demo scenarios, not
+          backend analysis.
         </Heading>
         <div className="reveal">
           <WhatIfSimulator />
@@ -541,19 +550,19 @@ function App() {
               number: '02',
               tone: 'amber',
               icon: 'branch' as IconName,
-              title: 'Plan a risky refactor',
-              copy: 'Trace dependents and simulate the blast radius before changing a module, contract, or dependency.',
+              title: 'Preview impact planning',
+              copy: 'Explore the planned What-if workflow while dependency analysis remains a backend roadmap item.',
               view: 'simulator' as WorkspaceView,
-              meta: ['Affected files', 'Critical flows', 'Safer migration'],
+              meta: ['Concept UI', 'Demo scenario', 'Engine planned'],
             },
             {
               number: '03',
               tone: 'coral',
               icon: 'health' as IconName,
-              title: 'Find what needs attention',
-              copy: 'Turn complexity, coverage, coupling, and dependency signals into a prioritized engineering plan.',
+              title: 'Inspect repository measurements',
+              copy: 'Review measured file counts, directory totals, sizes, empty files, and language distribution.',
               view: 'health' as WorkspaceView,
-              meta: ['Health score', 'Hotspot ranking', 'Actionable fixes'],
+              meta: ['File inventory', 'Size signals', 'Language mix'],
             },
           ].map((item) => (
             <a
@@ -592,8 +601,8 @@ function App() {
             <small>SHARED PROJECT INTELLIGENCE</small>
             <h3>Explore once. Build context everywhere.</h3>
             <p>
-              Galaxy, onboarding, health, simulation, and chat use the same architectural map—so you
-              never restart your investigation between tools.
+              Live views share one backend scan. Concept previews are clearly separated from
+              measured project data.
             </p>
             <button onClick={() => openDashboard('architecture')}>
               Explore the full workspace <Icon name="arrow" size={14} />
@@ -602,19 +611,19 @@ function App() {
           <dl>
             <div>
               <dt>9</dt>
-              <dd>Mapped modules</dd>
+              <dd>Architecture checks</dd>
             </div>
             <div>
-              <dt>14</dt>
-              <dd>Dependency paths</dd>
+              <dt>1</dt>
+              <dd>Python symbol parser</dd>
             </div>
             <div>
-              <dt>2</dt>
-              <dd>Priority hotspots</dd>
+              <dt>5+</dt>
+              <dd>Measured scan signals</dd>
             </div>
             <div>
               <dt>100%</dt>
-              <dd>Local preview</dd>
+              <dd>Local workspace</dd>
             </div>
           </dl>
         </div>

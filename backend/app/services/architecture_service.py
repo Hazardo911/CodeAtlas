@@ -125,11 +125,4 @@ class ArchitectureService:
         write_json(cache / "knowledge.json", knowledge_payload)
         logger.info(f"Knowledge database representation generated for: {project_id}")
 
-        # Trigger index building automatically after analysis is completed
-        try:
-            from app.ai.vector_store import LocalVectorStore
-            LocalVectorStore.build_index(project_id)
-        except Exception as e:
-            logger.error(f"Failed to auto-build vector store index after architecture analysis: {e}")
-
         return architecture

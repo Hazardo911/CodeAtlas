@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
-import { analyzeRepository, type ProjectAnalysis } from '../api/codeAtlas'
+import {
+  analyzeGithubRepository,
+  analyzeRepository,
+  type AnalysisStage,
+  type ProjectAnalysis,
+} from '../api/codeAtlas'
 import './UploadFlow.css'
 
 type UploadFlowProps = {
@@ -8,6 +13,7 @@ type UploadFlowProps = {
   onComplete: (analysis: ProjectAnalysis) => void
 }
 type ScanState = 'idle' | 'scanning' | 'ready' | 'error'
+type ImportMode = 'github' | 'local'
 
 const languageMap: Record<string, string> = {
   ts: 'TypeScript',
@@ -36,10 +42,13 @@ const ignored = /(^|\/)(node_modules|\.git|dist|build|\.dart_tool|coverage)(\/|$
 export default function UploadFlow({ open, onClose, onComplete }: UploadFlowProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [state, setState] = useState<ScanState>('idle')
+  const [importMode, setImportMode] = useState<ImportMode>('github')
+  const [githubUrl, setGithubUrl] = useState('')
   const [dragging, setDragging] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [repoName, setRepoName] = useState('')
   const [progress, setProgress] = useState(0)
+  const [scanStage, setScanStage] = useState<AnalysisStage>('uploading')
   const [analysis, setAnalysis] = useState<ProjectAnalysis | null>(null)
   const [error, setError] = useState('')
 
@@ -48,7 +57,10 @@ export default function UploadFlow({ open, onClose, onComplete }: UploadFlowProp
       setState('idle')
       setFiles([])
       setProgress(0)
+      setScanStage('uploading')
       setRepoName('')
+      setGithubUrl('')
+      setImportMode('github')
       setAnalysis(null)
       setError('')
     }
@@ -73,7 +85,17 @@ export default function UploadFlow({ open, onClose, onComplete }: UploadFlowProp
       ).size,
     [files],
   )
+  const displayedLanguages = analysis
+    ? Object.entries(analysis.scan.scan.languages)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+    : languages
   const currentFile = files[Math.min(files.length - 1, Math.floor((progress / 100) * files.length))]
+
+  const updateStage = (stage: AnalysisStage, nextProgress: number) => {
+    setScanStage(stage)
+    setProgress(nextProgress)
+  }
 
   const scan = async (incoming: File[]) => {
     const usable = incoming.filter((file) => !ignored.test(file.webkitRelativePath || file.name))
@@ -86,12 +108,42 @@ export default function UploadFlow({ open, onClose, onComplete }: UploadFlowProp
     setError('')
     try {
       setProgress(24)
-      const result = await analyzeRepository(usable, first || 'Local repository')
+      const result = await analyzeRepository(usable, first || 'Local repository', updateStage)
       setProgress(100)
       setAnalysis(result)
       setState('ready')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not analyze this repository.')
+      setState('error')
+    }
+  }
+  const importGithub = async () => {
+    const url = githubUrl.trim()
+    if (!/^https:\/\/github\.com\/[^/\s]+\/[^/\s]+(?:\.git)?\/?$/i.test(url)) {
+      setError('Enter a public GitHub repository URL, for example https://github.com/owner/repo')
+      return
+    }
+    const name =
+      url
+        .replace(/\/$/, '')
+        .replace(/\.git$/i, '')
+        .split('/')
+        .pop() || 'GitHub repository'
+    setRepoName(name)
+    setFiles([])
+    setProgress(8)
+    setScanStage('uploading')
+    setState('scanning')
+    setError('')
+    try {
+      const result = await analyzeGithubRepository(url, updateStage)
+      setProgress(100)
+      setAnalysis(result)
+      setState('ready')
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : 'Could not import this GitHub repository.',
+      )
       setState('error')
     }
   }
@@ -128,28 +180,64 @@ export default function UploadFlow({ open, onClose, onComplete }: UploadFlowProp
           <>
             <header>
               <small>NEW ANALYSIS</small>
-              <h2 id="upload-title">Open a repository</h2>
-              <p>
-                Select a project folder. Your source files stay entirely inside this browser
-                session.
-              </p>
+              <h2 id="upload-title">Import a repository</h2>
+              <p>Import a public GitHub repository, or choose a folder already on this machine.</p>
             </header>
-            <div
-              className={`drop-zone ${dragging ? 'dragging' : ''}`}
-              onDragEnter={(event) => {
-                event.preventDefault()
-                setDragging(true)
-              }}
-              onDragOver={(event) => event.preventDefault()}
-              onDragLeave={() => setDragging(false)}
-              onDrop={drop}
-            >
-              <div className="drop-icon">↥</div>
-              <b>Drop your repository here</b>
-              <span>or choose a local project folder</span>
-              <button onClick={selectFolder}>Choose repository</button>
-              <small>Folders such as node_modules, .git and dist are ignored</small>
+            <div className="import-tabs" role="tablist" aria-label="Repository source">
+              <button
+                className={importMode === 'github' ? 'active' : ''}
+                onClick={() => setImportMode('github')}
+              >
+                GitHub repository
+              </button>
+              <button
+                className={importMode === 'local' ? 'active' : ''}
+                onClick={() => setImportMode('local')}
+              >
+                Local folder
+              </button>
             </div>
+            {importMode === 'github' ? (
+              <div className="github-import">
+                <div className="drop-icon">GH</div>
+                <b>Import from GitHub</b>
+                <span>Paste the URL of a public repository</span>
+                <input
+                  type="url"
+                  value={githubUrl}
+                  onChange={(event) => {
+                    setGithubUrl(event.target.value)
+                    setError('')
+                  }}
+                  onKeyDown={(event) => event.key === 'Enter' && importGithub()}
+                  placeholder="https://github.com/owner/repository"
+                  autoFocus
+                />
+                {error && <small className="import-error">{error}</small>}
+                <button onClick={importGithub}>Import repository</button>
+                <a href="https://github.com/?tab=repositories" target="_blank" rel="noreferrer">
+                  Open your GitHub repositories ↗
+                </a>
+                <small>Cloned and analyzed only by your local CodeAtlas backend</small>
+              </div>
+            ) : (
+              <div
+                className={`drop-zone ${dragging ? 'dragging' : ''}`}
+                onDragEnter={(event) => {
+                  event.preventDefault()
+                  setDragging(true)
+                }}
+                onDragOver={(event) => event.preventDefault()}
+                onDragLeave={() => setDragging(false)}
+                onDrop={drop}
+              >
+                <div className="drop-icon">↥</div>
+                <b>Drop your repository here</b>
+                <span>or choose a local project folder</span>
+                <button onClick={selectFolder}>Choose local folder</button>
+                <small>Folders such as node_modules, .git and dist are ignored</small>
+              </div>
+            )}
           </>
         )}
         {state === 'scanning' && (
@@ -157,16 +245,32 @@ export default function UploadFlow({ open, onClose, onComplete }: UploadFlowProp
             <div className="scan-orbit">
               <span>⌘</span>
             </div>
-            <small>ANALYZING LOCALLY</small>
+            <small>
+              {scanStage === 'uploading'
+                ? importMode === 'github'
+                  ? 'CLONING FROM GITHUB'
+                  : 'COPYING TO LOCAL WORKSPACE'
+                : scanStage === 'scanning'
+                  ? 'SCANNING FILES AND SYMBOLS'
+                  : 'DETECTING ARCHITECTURE'}
+            </small>
             <h2 id="upload-title">Mapping {repoName}</h2>
             <p>
-              {currentFile?.webkitRelativePath || currentFile?.name || 'Reading project structure…'}
+              {currentFile?.webkitRelativePath ||
+                currentFile?.name ||
+                (importMode === 'github'
+                  ? 'Fetching repository into the local workspace…'
+                  : 'Reading project structure…')}
             </p>
             <div className="scan-progress">
               <i style={{ width: `${progress}%` }} />
             </div>
             <div className="scan-numbers">
-              <span>{files.length.toLocaleString()} files</span>
+              <span>
+                {importMode === 'github'
+                  ? 'GitHub import'
+                  : `${files.length.toLocaleString()} files`}
+              </span>
               <b>{progress}%</b>
             </div>
             <div className="scan-steps">
@@ -181,23 +285,23 @@ export default function UploadFlow({ open, onClose, onComplete }: UploadFlowProp
             <div className="ready-check">✓</div>
             <small>ANALYSIS COMPLETE</small>
             <h2 id="upload-title">{repoName} is ready</h2>
-            <p>The local backend and AI knowledge pipeline have mapped this workspace.</p>
+            <p>The local scanner and architecture detector have mapped this workspace.</p>
             <div className="repo-stats">
               <article>
-                <b>{files.length.toLocaleString()}</b>
+                <b>{(analysis?.scan.scan.total_files ?? files.length).toLocaleString()}</b>
                 <span>Source files</span>
               </article>
               <article>
-                <b>{folders}</b>
+                <b>{analysis?.scan.scan.total_directories ?? folders}</b>
                 <span>Folders</span>
               </article>
               <article>
-                <b>{languages.length}</b>
+                <b>{Object.keys(analysis?.scan.scan.languages ?? {}).length || languages.length}</b>
                 <span>Languages</span>
               </article>
             </div>
             <div className="language-list">
-              {languages.map(([name, count]) => (
+              {displayedLanguages.map(([name, count]) => (
                 <span key={name}>
                   {name}
                   <b>{count}</b>

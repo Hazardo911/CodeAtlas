@@ -15,20 +15,66 @@ export type ScanResult = {
     languages: Record<string, number>
     files: Array<{ path: string; name: string; language: string; size: number }>
   }
-  health: { summary?: Record<string, number> }
+  health: {
+    summary: {
+      total_files: number
+      total_directories: number
+      total_size: number
+    }
+    health: {
+      largest_file: null | { path: string; name: string; language: string; size: number }
+      empty_files: string[]
+      average_file_size: number
+    }
+    languages: Record<string, number>
+  }
+}
+
+export type ArchitectureDetail = {
+  detected: boolean
+  confidence: 'High' | 'Medium' | 'Low' | 'None'
+  score: number
+  matched_signals: string[]
 }
 
 export type ArchitectureResult = {
-  frameworks?: string[]
-  architecture_type?: string
-  [key: string]: unknown
+  backend: boolean
+  frontend: boolean
+  mobile: boolean
+  database: boolean
+  api: boolean
+  ai: boolean
+  testing: boolean
+  docker: boolean
+  github_actions: boolean
+  frameworks: string[]
+  details: Record<string, ArchitectureDetail>
+}
+
+export type AiStatus = {
+  available: boolean
+  model_available: boolean
+  models: string[]
+  model: string
+  provider: string
 }
 
 export type ProjectAnalysis = {
   metadata: ProjectMetadata
   scan: ScanResult
   architecture: ArchitectureResult
+  aiStatus: AiStatus
 }
+
+export type AnalysisStage = 'uploading' | 'scanning' | 'architecture' | 'ready'
+
+export type ChatSource = {
+  file: string | null
+  score: number | null
+  line_start: number | null
+  line_end: number | null
+}
+export type ChatResponse = { answer: string; sources: ChatSource[] }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, init)
@@ -39,9 +85,34 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
+async function finishAnalysis(
+  metadata: ProjectMetadata,
+  onStage?: (stage: AnalysisStage, progress: number) => void,
+): Promise<ProjectAnalysis> {
+  onStage?.('scanning', 48)
+  const scan = await request<ScanResult>(`/projects/${metadata.project_id}/scan`, {
+    method: 'POST',
+  })
+  onStage?.('architecture', 78)
+  const architecture = await request<ArchitectureResult>(
+    `/projects/${metadata.project_id}/architecture`,
+    { method: 'POST' },
+  )
+  const aiStatus = await getAiStatus().catch(() => ({
+    available: false,
+    model_available: false,
+    models: [],
+    model: 'phi3:latest',
+    provider: 'Ollama',
+  }))
+  onStage?.('ready', 100)
+  return { metadata, scan, architecture, aiStatus }
+}
+
 export async function analyzeRepository(
   files: File[],
   projectName: string,
+  onStage?: (stage: AnalysisStage, progress: number) => void,
 ): Promise<ProjectAnalysis> {
   const form = new FormData()
   form.append('project_name', projectName)
@@ -50,25 +121,35 @@ export async function analyzeRepository(
     form.append('relative_paths', file.webkitRelativePath || file.name)
   })
 
+  onStage?.('uploading', 12)
   const metadata = await request<ProjectMetadata>('/projects/upload-files', {
     method: 'POST',
     body: form,
   })
-  const scan = await request<ScanResult>(`/projects/${metadata.project_id}/scan`, {
-    method: 'POST',
-  })
-  const architecture = await request<ArchitectureResult>(
-    `/projects/${metadata.project_id}/architecture`,
-    { method: 'POST' },
-  )
-  return { metadata, scan, architecture }
+  return finishAnalysis(metadata, onStage)
 }
 
-export async function askProject(projectId: string, query: string): Promise<string> {
-  const result = await request<{ answer: string }>(`/projects/${projectId}/chat`, {
+export async function analyzeGithubRepository(
+  repoUrl: string,
+  onStage?: (stage: AnalysisStage, progress: number) => void,
+): Promise<ProjectAnalysis> {
+  onStage?.('uploading', 12)
+  const metadata = await request<ProjectMetadata>('/projects/upload-github', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_url: repoUrl.trim() }),
+  })
+  return finishAnalysis(metadata, onStage)
+}
+
+export function getAiStatus(): Promise<AiStatus> {
+  return request<AiStatus>('/ai/status')
+}
+
+export async function askProject(projectId: string, query: string): Promise<ChatResponse> {
+  return request<ChatResponse>(`/projects/${projectId}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query }),
   })
-  return result.answer
 }

@@ -31,7 +31,9 @@ class OllamaClient:
         self.base_url = base_url.rstrip("/")
         self.default_model = default_model
         # Use a persistent HTTPX client for connection pooling
-        self.client = httpx.Client(timeout=60.0)
+        self.client = httpx.Client(
+            timeout=httpx.Timeout(connect=5.0, read=300.0, write=30.0, pool=10.0)
+        )
         self._initialized = True
         logger.info(f"OllamaClient initialized. Host: {self.base_url}, Default Model: {self.default_model}")
 
@@ -40,11 +42,31 @@ class OllamaClient:
         Checks if the local Ollama service is running and accessible.
         """
         try:
-            resp = self.client.get(f"{self.base_url}/")
+            resp = self.client.get(f"{self.base_url}/", timeout=2.0)
             return resp.status_code == 200
         except Exception as e:
             logger.warning(f"Ollama health check failed: {e}")
             return False
+
+    def get_status(self, model: str | None = None) -> Dict[str, Any]:
+        """Return daemon reachability and whether the configured model is installed."""
+        target_model = model or self.default_model
+        try:
+            resp = self.client.get(f"{self.base_url}/api/tags", timeout=2.0)
+            resp.raise_for_status()
+            installed_models = [
+                item.get("name") or item.get("model")
+                for item in resp.json().get("models", [])
+                if item.get("name") or item.get("model")
+            ]
+            return {
+                "available": True,
+                "model_available": target_model in installed_models,
+                "models": installed_models,
+            }
+        except Exception as e:
+            logger.warning(f"Ollama status check failed: {e}")
+            return {"available": False, "model_available": False, "models": []}
 
     def generate(self, prompt: str, model: str | None = None) -> str:
         """
@@ -62,7 +84,13 @@ class OllamaClient:
         payload = {
             "model": target_model,
             "prompt": prompt,
-            "stream": False
+            "stream": False,
+            "keep_alive": "10m",
+            "options": {
+                "temperature": 0.2,
+                "num_ctx": 4096,
+                "num_predict": 320,
+            },
         }
 
         logger.info(f"Sending generation request to Ollama using model '{target_model}'...")
@@ -77,9 +105,18 @@ class OllamaClient:
             logger.info("Ollama response generated successfully.")
             return response_text
 
-        except Exception as e:
+        except httpx.TimeoutException as e:
+            logger.exception(f"Ollama generation timed out: {e}")
+            return (
+                "Error: The local model took longer than five minutes to answer. "
+                "Try a more specific question or close other CPU-heavy applications."
+            )
+        except httpx.ConnectError as e:
             logger.exception(f"HTTP request to Ollama daemon failed: {e}")
             return f"Error: Could not connect to local Ollama daemon at {self.base_url}. Ensure Ollama is running."
+        except Exception as e:
+            logger.exception(f"Unexpected Ollama generation error: {e}")
+            return f"Error: Local model generation failed: {type(e).__name__}."
 
 
 # Global client instance

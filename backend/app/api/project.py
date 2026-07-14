@@ -1,14 +1,12 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from pathlib import Path
-from app.services.scanner_service import ScannerService
+from functools import lru_cache
 from app.services.project_service import ProjectService
 from app.services.architecture_service import ArchitectureService
-from app.services.chat_service import ChatService
 
 architecture_service = ArchitectureService()
-chat_service = ChatService()
 
 router = APIRouter(
     prefix="/projects",
@@ -16,7 +14,11 @@ router = APIRouter(
 )
 
 service = ProjectService()
-scanner_service = ScannerService()
+@lru_cache(maxsize=1)
+def get_chat_service():
+    """Load the heavy embedding/RAG stack only when chat is first used."""
+    from app.services.chat_service import ChatService
+    return ChatService()
 
 class FolderUploadRequest(BaseModel):
     folder_path: str
@@ -30,7 +32,10 @@ class GithubUploadRequest(BaseModel):
 async def upload_project(
     file: UploadFile = File(...)
 ):
-    return await service.create_from_zip(file)
+    try:
+        return await service.create_from_zip(file)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/upload-files")
@@ -56,29 +61,33 @@ def upload_project_folder(request: FolderUploadRequest):
 
 @router.post("/upload-github")
 def upload_project_github(request: GithubUploadRequest):
-    return service.create_from_github(request.repo_url)
+    try:
+        return service.create_from_github(request.repo_url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/{project_id}/scan")
 def scan_project(
     project_id: str,
 ):
-    return service.scan_project(
-        project_id
-    )
+    try:
+        return service.scan_project(project_id)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 @router.post("/{project_id}/architecture")
 def detect_architecture(
     project_id: str,
 ):
-
-    return architecture_service.analyze(
-        project_id
-    )
+    try:
+        return architecture_service.analyze(project_id)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 class ChatRequest(BaseModel):
-    query: str
+    query: str = Field(min_length=1, max_length=4000)
     model: Optional[str] = None
 
 
@@ -91,7 +100,7 @@ def chat_with_project(
     RAG chat endpoint. Conserves knowledge base context to answer user queries
     locally using the Ollama service.
     """
-    return chat_service.answer_question(
+    return get_chat_service().answer_question(
         project_id=project_id,
         query=request.query,
         model=request.model

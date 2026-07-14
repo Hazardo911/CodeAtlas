@@ -58,6 +58,8 @@ def extract_zip(zip_path: Path, destination: Path):
     Extract ZIP while skipping unnecessary folders.
     """
 
+    destination_root = destination.resolve()
+
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
 
         for member in zip_ref.infolist():
@@ -72,7 +74,12 @@ def extract_zip(zip_path: Path, destination: Path):
             if should_ignore_dir(member_path):
                 continue
 
-            target = destination / member.filename
+            if member_path.is_absolute() or ".." in member_path.parts:
+                continue
+
+            target = (destination / member.filename).resolve()
+            if not target.is_relative_to(destination_root):
+                continue
 
             if member.is_dir():
                 target.mkdir(parents=True, exist_ok=True)

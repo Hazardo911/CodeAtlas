@@ -47,7 +47,9 @@ class PromptBuilder:
             "  * 'potentially'\n"
             "- If evidence is not found or information is missing, clearly state that it could not be found in the uploaded project. Specifically respond with: 'I could not find evidence for this in the uploaded project.'\n"
             "- Do not guess or infer missing architecture.\n"
-            "- Prefer source code over summaries when explaining implementation details.\n"
+            "- Use structured metadata and extracted symbols first for project/architecture claims.\n"
+            "- Use retrieved local source excerpts only for implementation details.\n"
+            "- Treat line ranges as citation metadata; never claim unseen code.\n"
             "- Always produce structured answers using these exact sections:\n\n"
             "Project Purpose\n"
             "Technologies\n"
@@ -93,11 +95,15 @@ class PromptBuilder:
                 f"- Architectural Checklist:\n"
                 f"  * Backend: {arch.get('backend', False)}\n"
                 f"  * Frontend: {arch.get('frontend', False)}\n"
+                f"  * Mobile: {arch.get('mobile', False)}\n"
                 f"  * Database: {arch.get('database', False)}\n"
                 f"  * API: {arch.get('api', False)}\n"
                 f"  * AI/RAG: {arch.get('ai', False)}\n"
+                f"  * Testing: {arch.get('testing', False)}\n"
                 f"  * Docker: {arch.get('docker', False)}\n"
                 f"  * GitHub Actions: {arch.get('github_actions', False)}\n"
+                "These scan results are authoritative. Do not contradict them. "
+                "Frontend means a web frontend; Mobile is a separate application category.\n"
                 "================================\n\n"
             )
 
@@ -110,16 +116,24 @@ class PromptBuilder:
             classification = doc.get("classification", "Source Code")
             score = doc.get("score", 0.0)
             content = doc.get("content", "")
+            line_start = doc.get("line_start")
+            line_end = doc.get("line_end")
+            line_range = (
+                f"Lines: {line_start}-{line_end}\n"
+                if line_start is not None and line_end is not None
+                else ""
+            )
 
             # Truncate large individual files to prevent OOM/context window overflow
-            if len(content) > 10000:
-                content = content[:10000] + "\n... [TRUNCATED FOR BUDGET] ..."
+            if len(content) > 3000:
+                content = content[:3000] + "\n... [TRUNCATED FOR BUDGET] ..."
 
             retrieved_files += (
                 "===== FILE =====\n"
                 f"{file_path}\n"
                 f"Type: {classification}\n"
                 f"Similarity: {score:.2f}\n\n"
+                f"{line_range}"
                 f"{content}\n"
                 "=================\n\n"
             )

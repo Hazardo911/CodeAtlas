@@ -101,18 +101,19 @@ class LocalRetriever:
             # 3. Perform inner product (IP) search.
             scores, indices = index.search(query_emb_np, search_k)
 
-            # 4. Map results back to document contents and deduplicate by file_path
+            # 4. Map results back to documents. Keep at most two contexts per file
+            # so a structured symbol record and one relevant source excerpt can coexist.
             retrieved_docs = []
-            seen_paths = set()
+            path_counts: Dict[str, int] = {}
             for score, doc_idx in zip(scores[0], indices[0]):
                 if doc_idx < 0 or doc_idx >= len(documents):
                     continue
 
                 doc = documents[doc_idx]
                 path = doc.get("file_path", "unknown")
-                if path in seen_paths:
+                if path_counts.get(path, 0) >= 2:
                     continue
-                seen_paths.add(path)
+                path_counts[path] = path_counts.get(path, 0) + 1
 
                 retrieved_docs.append({
                     "type": doc.get("type"),
@@ -120,7 +121,10 @@ class LocalRetriever:
                     "content": doc.get("content"),
                     "score": float(score),
                     "classification": doc.get("classification", "Source Code"),
-                    "symbols": doc.get("symbols", [])
+                    "symbols": doc.get("symbols", []),
+                    "line_start": doc.get("line_start"),
+                    "line_end": doc.get("line_end"),
+                    "chunk_index": doc.get("chunk_index"),
                 })
 
             # 5. Filter by similarity score (Retrieval Verification)

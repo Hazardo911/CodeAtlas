@@ -58,6 +58,21 @@ class TestIgnoreLogic(unittest.TestCase):
             self.assertFalse((dest_path / "node_modules").exists())
             self.assertFalse((dest_path / "src/nested/venv").exists())
 
+    def test_zip_extraction_blocks_parent_path_traversal(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            zip_path = tmpdir_path / "unsafe.zip"
+            dest_path = tmpdir_path / "extracted"
+
+            with zipfile.ZipFile(zip_path, "w") as zf:
+                zf.writestr("../escaped.py", "print('unsafe')")
+                zf.writestr("src/safe.py", "print('safe')")
+
+            extract_zip(zip_path, dest_path)
+
+            self.assertFalse((tmpdir_path / "escaped.py").exists())
+            self.assertTrue((dest_path / "src/safe.py").exists())
+
     def test_scanner_prunes_ignored_directories(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)

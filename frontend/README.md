@@ -4,14 +4,15 @@ The frontend application for **CodeAtlas**, an AI-powered software architecture 
 
 ---
 
-## Features
+## Feature status
 
-- 🌌 **Project Galaxy** – Explore project modules and their relationships in an interactive visualization.
-- 🔍 **What-if Simulator** – Simulate architectural changes before modifying your code.
-- 🤖 **AI Onboarding** – Designed to help developers understand unfamiliar codebases quickly.
-- 📊 **Project Health** – Visualize maintainability insights and project health metrics.
-- 💬 **AI Chat** *(Coming Soon)* – AI-powered conversations about your codebase.
-- 🗺️ **Architecture Map** *(Coming Soon)* – Automatically generate architecture diagrams.
+- ✅ **Repository Upload** – Sends browser-selected folders to the local FastAPI workspace.
+- ✅ **Architecture Detection** – Displays real backend framework, layer, confidence, and evidence results.
+- ✅ **Repository Metrics** – Displays measured files, folders, sizes, empty files, and languages.
+- ✅ **Local RAG Chat** – Uses the uploaded project index when Ollama and the configured model are available.
+- 🟡 **Repository Galaxy** – Live projects show scan-derived folder topology; dependency edges are not implemented.
+- 🟡 **Reading Guide** – Uses verified scan metadata, not generated semantic onboarding.
+- 🧪 **What-if Simulator** – Concept preview only; the backend impact engine is not implemented.
 
 ---
 

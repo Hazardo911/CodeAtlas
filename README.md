@@ -153,11 +153,13 @@ workspace/{project_id}/
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | `POST` | `/projects/upload` | Upload a ZIP archive to initialize a workspace. |
+| `POST` | `/projects/upload-files` | Upload browser-selected files while preserving relative paths. |
 | `POST` | `/projects/upload-folder` | Ingest a project from an absolute path on the host system. |
 | `POST` | `/projects/upload-github` | Checkout and clone a remote GitHub repository. |
 | `POST` | `/projects/{id}/scan` | Scan files, analyze health metrics, and extract AST symbols. |
 | `POST` | `/projects/{id}/architecture` | Run the multi-signal registry-driven architecture detector. |
 | `POST` | `/projects/{id}/chat` | Ask technical questions about the codebase using local RAG. |
+| `GET` | `/ai/status` | Check local Ollama availability and configured model installation. |
 
 ---
 
@@ -210,6 +212,7 @@ uv run uvicorn app.main:app --reload --port 8000
 * **Swagger API UI**: `[Screenshot Placeholder: swagger_docs.png]`
 * **Chat Interface**: `[Screenshot Placeholder: rag_chat_interface.png]`
 * **Architecture Diagram**: `[Screenshot Placeholder: system_diagram.png]`
+* **On-device AI policy**: [`docs/AI_ARCHITECTURE.md`](docs/AI_ARCHITECTURE.md)
 
 ---
 

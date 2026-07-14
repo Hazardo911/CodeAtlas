@@ -85,7 +85,7 @@ export default function WhatIfSimulator() {
         <header>
           <span>✦</span>
           <div>
-            <small>LOCAL SIMULATION</small>
+            <small>CONCEPT PREVIEW</small>
             <h3>Compose a change</h3>
           </div>
         </header>
@@ -138,7 +138,7 @@ export default function WhatIfSimulator() {
           {phase === 'running' ? `Analyzing ${progress}%` : 'Run impact simulation'}
           <span>→</span>
         </button>
-        <p className="browser-note">⌾ Mock analysis runs locally in your browser</p>
+        <p className="browser-note">⌾ Demo scenario only · no backend impact engine yet</p>
       </section>
       <section className="whatif-result">
         {phase === 'idle' && (

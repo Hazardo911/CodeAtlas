@@ -1,7 +1,10 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/graph", tags=["graph"])
 
 @router.get("")
 def get_graph() -> dict:
-    return {"nodes": [], "edges": []}
+    raise HTTPException(
+        status_code=501,
+        detail="Dependency graph generation is not implemented yet.",
+    )
