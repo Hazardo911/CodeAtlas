@@ -1,4 +1,4 @@
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from uuid import uuid4
 import shutil
 
@@ -129,6 +129,44 @@ class ProjectService:
 
         # Remove temporary folder
         shutil.rmtree(extract_path)
+
+        return project["metadata"]
+
+    async def create_from_files(
+        self,
+        files: list[UploadFile],
+        relative_paths: list[str],
+        project_name: str,
+    ) -> dict:
+        """Ingest browser-selected folder files while preserving their structure."""
+        if not files or len(files) != len(relative_paths):
+            raise ValueError("Files and relative paths must be provided in matching order.")
+
+        safe_name = Path(project_name).name.strip() or "Local repository"
+        project = self._initialize_project(
+            project_name=safe_name,
+            source_type=ProjectSource.FILES,
+        )
+        source = project["source"]
+
+        try:
+            for upload, raw_path in zip(files, relative_paths):
+                normalized = PurePosixPath(raw_path.replace("\\", "/"))
+                parts = normalized.parts
+                if not parts or normalized.is_absolute() or ".." in parts:
+                    raise ValueError(f"Unsafe repository path: {raw_path}")
+
+                # webkitRelativePath normally includes the selected root folder.
+                repository_parts = parts[1:] if len(parts) > 1 and parts[0] == safe_name else parts
+                if not repository_parts:
+                    continue
+
+                destination = source.joinpath(*repository_parts)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                await save_upload_file(upload, destination)
+        except Exception:
+            shutil.rmtree(project["workspace"], ignore_errors=True)
+            raise
 
         return project["metadata"]
 

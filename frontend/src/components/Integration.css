@@ -1,0 +1,18 @@
+.chat-input input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #dfe5dc;
+  font: inherit;
+}
+
+.chat-input input::placeholder {
+  color: #5f675e;
+}
+
+.chat-input button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}

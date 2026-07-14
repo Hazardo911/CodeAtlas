@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from pathlib import Path
@@ -31,6 +31,18 @@ async def upload_project(
     file: UploadFile = File(...)
 ):
     return await service.create_from_zip(file)
+
+
+@router.post("/upload-files")
+async def upload_project_files(
+    files: list[UploadFile] = File(...),
+    relative_paths: list[str] = Form(...),
+    project_name: str = Form(...),
+):
+    try:
+        return await service.create_from_files(files, relative_paths, project_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/upload-folder")

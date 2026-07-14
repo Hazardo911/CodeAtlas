@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
+import { analyzeRepository, type ProjectAnalysis } from '../api/codeAtlas'
 import './UploadFlow.css'
 
-type UploadFlowProps = { open: boolean; onClose: () => void; onComplete: (name: string) => void }
-type ScanState = 'idle' | 'scanning' | 'ready'
+type UploadFlowProps = {
+  open: boolean
+  onClose: () => void
+  onComplete: (analysis: ProjectAnalysis) => void
+}
+type ScanState = 'idle' | 'scanning' | 'ready' | 'error'
 
 const languageMap: Record<string, string> = {
   ts: 'TypeScript',
@@ -30,21 +35,22 @@ const ignored = /(^|\/)(node_modules|\.git|dist|build|\.dart_tool|coverage)(\/|$
 
 export default function UploadFlow({ open, onClose, onComplete }: UploadFlowProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const timerRef = useRef<number>(0)
   const [state, setState] = useState<ScanState>('idle')
   const [dragging, setDragging] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [repoName, setRepoName] = useState('')
   const [progress, setProgress] = useState(0)
+  const [analysis, setAnalysis] = useState<ProjectAnalysis | null>(null)
+  const [error, setError] = useState('')
 
-  useEffect(() => () => window.clearInterval(timerRef.current), [])
   useEffect(() => {
     if (!open) {
-      window.clearInterval(timerRef.current)
       setState('idle')
       setFiles([])
       setProgress(0)
       setRepoName('')
+      setAnalysis(null)
+      setError('')
     }
   }, [open])
 
@@ -69,27 +75,25 @@ export default function UploadFlow({ open, onClose, onComplete }: UploadFlowProp
   )
   const currentFile = files[Math.min(files.length - 1, Math.floor((progress / 100) * files.length))]
 
-  const scan = (incoming: File[]) => {
+  const scan = async (incoming: File[]) => {
     const usable = incoming.filter((file) => !ignored.test(file.webkitRelativePath || file.name))
     if (!usable.length) return
     const first = usable[0].webkitRelativePath.split('/')[0]
     setRepoName(first || 'Local repository')
     setFiles(usable)
-    setProgress(2)
+    setProgress(8)
     setState('scanning')
-    window.clearInterval(timerRef.current)
-    timerRef.current = window.setInterval(
-      () =>
-        setProgress((value) => {
-          const next = Math.min(100, value + (value < 60 ? 4 : value < 88 ? 2 : 1))
-          if (next === 100) {
-            window.clearInterval(timerRef.current)
-            window.setTimeout(() => setState('ready'), 350)
-          }
-          return next
-        }),
-      55,
-    )
+    setError('')
+    try {
+      setProgress(24)
+      const result = await analyzeRepository(usable, first || 'Local repository')
+      setProgress(100)
+      setAnalysis(result)
+      setState('ready')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not analyze this repository.')
+      setState('error')
+    }
   }
   const selectFolder = () => {
     inputRef.current?.setAttribute('webkitdirectory', '')
@@ -177,7 +181,7 @@ export default function UploadFlow({ open, onClose, onComplete }: UploadFlowProp
             <div className="ready-check">✓</div>
             <small>ANALYSIS COMPLETE</small>
             <h2 id="upload-title">{repoName} is ready</h2>
-            <p>Your frontend workspace has been mapped using local mock analysis.</p>
+            <p>The local backend and AI knowledge pipeline have mapped this workspace.</p>
             <div className="repo-stats">
               <article>
                 <b>{files.length.toLocaleString()}</b>
@@ -207,14 +211,28 @@ export default function UploadFlow({ open, onClose, onComplete }: UploadFlowProp
               <button
                 className="continue"
                 onClick={() => {
-                  onComplete(repoName)
+                  if (!analysis) return
+                  onComplete(analysis)
                   onClose()
-                  requestAnimationFrame(() =>
-                    document.querySelector('#showcase')?.scrollIntoView({ behavior: 'smooth' }),
-                  )
                 }}
               >
                 Open project map →
+              </button>
+            </div>
+          </div>
+        )}
+        {state === 'error' && (
+          <div className="ready-state">
+            <div className="ready-check">!</div>
+            <small>LOCAL ENGINE UNAVAILABLE</small>
+            <h2 id="upload-title">Analysis could not finish</h2>
+            <p>{error}</p>
+            <div className="ready-actions">
+              <button className="secondary" onClick={onClose}>
+                Close
+              </button>
+              <button className="continue" onClick={() => setState('idle')}>
+                Try again
               </button>
             </div>
           </div>

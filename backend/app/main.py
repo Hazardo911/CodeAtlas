@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.database.db import Base, engine
 from app.api.project import router as project_router
@@ -12,6 +13,15 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="CodeAtlas API",
     version="1.0.0"
+)
+
+# The API and Vite UI are separate local processes during development.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Register routers
