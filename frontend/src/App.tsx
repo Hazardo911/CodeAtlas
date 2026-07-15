@@ -6,6 +6,8 @@ import ShinyText from './components/ShinyText'
 import Lightfall from './components/Lightfall'
 import UploadFlow from './components/UploadFlow'
 import WhatIfSimulator from './components/WhatIfSimulator'
+import FeatureWorkspace, { type WorkspaceView } from './components/FeatureWorkspace'
+import type { ProjectAnalysis } from './api/codeAtlas'
 const ProjectGalaxy = lazy(() => import('./components/ProjectGalaxy'))
 
 const lightfallColors = ['#B7FF2A', '#FFB84D', '#FF6B6B', '#2DD4BF']
@@ -117,112 +119,55 @@ function Heading({
   )
 }
 
-const trust = [
-  ['ai', '100% On-Device', 'All analysis happens locally.'],
-  ['lock', 'Private by Design', 'Your code never leaves your machine.'],
-  ['health', 'AI-Powered', 'Deep code understanding using local LLMs.'],
-  ['code', 'Open Source', 'Built for developers, by developers.'],
-] as const
 const steps = [
-  ['folder', 'Upload', 'Drag & drop your repo. 100% local processing.'],
-  ['branch', 'Analyze', 'We parse, map and understand your entire project.'],
-  ['graph', 'Visualize', 'Explore interactive graphs, dependencies and modules.'],
-  ['chat', 'Ask & Simulate', 'Ask questions, simulate changes and get insights.'],
+  ['folder', 'Upload', 'Copy a selected repository into the local backend workspace.'],
+  ['branch', 'Analyze', 'Scan files, languages, Python symbols, and architecture signals.'],
+  ['graph', 'Explore', 'Review detected architecture, repository areas, and measured metrics.'],
+  ['chat', 'Ask', 'Query the project index with an optional local Ollama model.'],
 ] as const
 const features = [
   [
     'graph',
     'Architecture Map',
-    'Auto-generate a detailed architecture diagram of your entire codebase.',
+    'Detect backend, frontend, API, database, testing, AI, and deployment signals.',
+  ],
+  ['spark', 'Project Galaxy', 'Explore a scan-derived map of top-level repository areas.'],
+  [
+    'health',
+    'What-if Preview',
+    'Explore the planned impact workflow; the backend engine is not implemented yet.',
   ],
   [
-    'spark',
-    'Project Galaxy',
-    'Visualize modules and their relationships in an interactive galaxy.',
+    'ai',
+    'Reading Guide',
+    'Start with verified manifests, entry points, README files, and large files.',
   ],
-  ['health', 'What-if Simulator', 'Simulate changes and see the impact before you touch the code.'],
-  ['ai', 'AI Onboarding', 'Get up to speed with any codebase in minutes, not hours.'],
-  ['shield', 'Project Health', 'Get a health score and insights on maintainability and risks.'],
-  ['chat', 'AI Chat', 'Ask anything about your codebase, powered by local LLMs.'],
+  [
+    'shield',
+    'Repository Metrics',
+    'Inspect real file, folder, size, empty-file, and language measurements.',
+  ],
+  ['chat', 'AI Chat', 'Ask grounded questions when the local Ollama runtime is available.'],
 ] as const
-const featureLinks: Record<string, string> = {
-  'Project Galaxy': '#galaxy',
-  'What-if Simulator': '#simulator',
-}
-
-function Dashboard() {
-  return (
-    <div className="dashboard reveal">
-      <aside>
-        <Brand />
-        <nav>
-          {['Overview', 'Architecture', 'Galaxy', 'Simulator', 'Health', 'AI Chat', 'Settings'].map(
-            (x, i) => (
-              <span className={i === 2 ? 'active' : ''} key={x}>
-                <Icon name={i === 2 ? 'spark' : i === 4 ? 'health' : 'graph'} size={14} />
-                {x}
-              </span>
-            ),
-          )}
-        </nav>
-        <div className="profile">
-          <i>AY</i>
-          <b>
-            Aayush<small>Pro Plan</small>
-          </b>
-        </div>
-      </aside>
-      <div className="map">
-        <div className="map-lines" />
-        <span className="map-core">
-          <Icon name="code" />
-          core<small>52 files</small>
-        </span>
-        {[
-          ['auth', 'top'],
-          ['api', 'right'],
-          ['web', 'far'],
-          ['database', 'bottom'],
-          ['utils', 'left'],
-          ['shared', 'upper'],
-        ].map(([x, p]) => (
-          <span className={`map-node ${p}`} key={x}>
-            {x}
-            <small>{Math.ceil(x.length * 7)} files</small>
-          </span>
-        ))}
-      </div>
-      <section className="details">
-        <span>core</span>
-        <small>Module</small>
-        <hr />
-        <dl>
-          <dt>Type</dt>
-          <dd>Module</dd>
-          <dt>Language</dt>
-          <dd>TypeScript</dd>
-          <dt>Dependencies</dt>
-          <dd>12</dd>
-          <dt>Dependents</dt>
-          <dd>5</dd>
-          <dt>LOC</dt>
-          <dd>3,245</dd>
-        </dl>
-        <p>Core business logic and domain services.</p>
-        <a>View Dependencies →</a>
-      </section>
-    </div>
-  )
+const featureViews: Record<string, WorkspaceView> = {
+  'Architecture Map': 'architecture',
+  'Project Galaxy': 'galaxy',
+  'What-if Preview': 'simulator',
+  'Reading Guide': 'onboarding',
+  'Repository Metrics': 'health',
+  'AI Chat': 'chat',
 }
 
 function App() {
   const [repoName, setRepoName] = useState('')
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [dashboardOpen, setDashboardOpen] = useState(false)
+  const [dashboardView, setDashboardView] = useState<WorkspaceView>('architecture')
+  const [project, setProject] = useState<ProjectAnalysis | null>(null)
 
   useEffect(() => {
     const root = document.documentElement
     root.classList.add('motion-ready')
-    const reveals = [...document.querySelectorAll<HTMLElement>('.reveal')]
     const revealObserver = new IntersectionObserver(
       (entries) =>
         entries.forEach((entry) => {
@@ -231,12 +176,20 @@ function App() {
             revealObserver.unobserve(entry.target)
           }
         }),
-      { threshold: 0.08, rootMargin: '0px 0px -50px' },
+      { threshold: 0.1, rootMargin: '0px 0px -28px' },
     )
-    reveals.forEach((element, index) => {
-      element.style.setProperty('--delay', `${Math.min(index % 4, 3) * 70}ms`)
-      revealObserver.observe(element)
-    })
+    const observed = new WeakSet<Element>()
+    let revealIndex = 0
+    const observeReveals = () =>
+      document.querySelectorAll<HTMLElement>('.reveal').forEach((element) => {
+        if (observed.has(element)) return
+        observed.add(element)
+        element.style.setProperty('--delay', `${Math.min(revealIndex++ % 4, 3) * 65}ms`)
+        revealObserver.observe(element)
+      })
+    observeReveals()
+    const revealMutationObserver = new MutationObserver(observeReveals)
+    revealMutationObserver.observe(document.body, { childList: true, subtree: true })
 
     const sections = [...document.querySelectorAll<HTMLElement>('section[id]')]
     const links = [...document.querySelectorAll<HTMLAnchorElement>('.navlinks a')]
@@ -260,6 +213,7 @@ function App() {
     window.addEventListener('scroll', updateProgress, { passive: true })
     return () => {
       revealObserver.disconnect()
+      revealMutationObserver.disconnect()
       sectionObserver.disconnect()
       window.removeEventListener('scroll', updateProgress)
       root.classList.remove('motion-ready')
@@ -267,6 +221,40 @@ function App() {
   }, [])
 
   const chooseRepository = () => setUploadOpen(true)
+  const openDashboard = (view: WorkspaceView = 'architecture') => {
+    setDashboardView(view)
+    setDashboardOpen(true)
+    window.scrollTo(0, 0)
+  }
+
+  if (dashboardOpen)
+    return (
+      <main className="product-dashboard">
+        <header className="dashboard-topbar">
+          <button
+            className="dashboard-home"
+            onClick={() => setDashboardOpen(false)}
+            aria-label="Back to CodeAtlas home"
+          >
+            <span>✳</span>
+            <b>CodeAtlas</b>
+          </button>
+          <div className="dashboard-context">
+            <span>
+              <i />
+              {project ? 'LOCAL ANALYSIS' : 'DEMO WORKSPACE'}
+            </span>
+            <b>{project?.metadata.project_name || 'Feature preview'}</b>
+          </div>
+          <button className="dashboard-exit" onClick={() => setDashboardOpen(false)}>
+            ← Back to home
+          </button>
+        </header>
+        <section className="dashboard-stage">
+          <FeatureWorkspace key={dashboardView} initialView={dashboardView} project={project} />
+        </section>
+      </main>
+    )
 
   return (
     <main id="top">
@@ -274,11 +262,11 @@ function App() {
       <nav className="topnav">
         <Brand />
         <div className="navlinks">
+          <button onClick={() => openDashboard('architecture')}>Dashboard</button>
           <a href="#features">Features</a>
           <a href="#how">How it Works</a>
           <a href="#showcase">Showcase</a>
           <a href="#security">Security</a>
-          <a href="#docs">Docs</a>
         </div>
         <a
           className="github"
@@ -290,8 +278,16 @@ function App() {
           Star on GitHub
         </a>
       </nav>
-      <UploadFlow open={uploadOpen} onClose={() => setUploadOpen(false)} onComplete={setRepoName} />
-      <section className="hero hero-centered">
+      <UploadFlow
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        onComplete={(analysis) => {
+          setProject(analysis)
+          setRepoName(analysis.metadata.project_name)
+          openDashboard('architecture')
+        }}
+      />
+      <div className="hero-shell">
         <Lightfall
           className="hero-lightfall"
           colors={lightfallColors}
@@ -310,71 +306,76 @@ function App() {
           mouseStrength={0.1}
           mouseRadius={0.7}
         />
-        <div className="architecture-signals" aria-hidden="true">
-          {architectureSignals.map((signal) => (
-            <div
-              className={`signal-chip ${signal.tone} ${signal.position}`}
-              key={`${signal.from}-${signal.to}`}
-            >
-              <i />
-              <span>
-                <small>{signal.kind}</small>
-                <b>{signal.from}</b>
-                <em>→</em>
-                <b>{signal.to}</b>
-              </span>
-            </div>
-          ))}
-        </div>
-        <div className="hero-copy reveal visible">
-          <span className="pill">● &nbsp; 100% On-Device AI</span>
-          <h1 className="shiny-title">
-            <ShinyText text="Understand Any Codebase." />
-            <ShinyText text="Visually." delay={1.45} />
-            <ShinyText
-              className="shiny-accent"
-              text="Privately."
-              color="#b7ff2a"
-              shineColor="#efffc9"
-              delay={1.7}
-            />
-          </h1>
-          <p>
-            CodeAtlas is your on-device AI software architect. Upload any repository and get an
-            interactive digital twin of your codebase.
-          </p>
-          <div className="actions">
-            <button className="primary" type="button" onClick={chooseRepository}>
-              <Icon name="folder" />
-              {repoName || 'Upload Repository'}
-            </button>
-            <a href="#galaxy">
-              <Icon name="play" />
-              Explore Demo
-            </a>
+        <section className="hero hero-centered">
+          <div className="architecture-signals" aria-hidden="true">
+            {architectureSignals.map((signal) => (
+              <div
+                className={`signal-chip ${signal.tone} ${signal.position}`}
+                key={`${signal.from}-${signal.to}`}
+              >
+                <i />
+                <span>
+                  <small>{signal.kind}</small>
+                  <b>{signal.from}</b>
+                  <em>→</em>
+                  <b>{signal.to}</b>
+                </span>
+              </div>
+            ))}
           </div>
-          <small className="safe">
-            <Icon name="shield" size={13} />
-            {repoName ? `${repoName} selected locally.` : 'Your code never leaves your machine.'}
-          </small>
-        </div>
-      </section>
-      <section className="trust reveal">
-        {trust.map(([i, t, d]) => (
-          <article key={t}>
-            <span>
-              <Icon name={i} />
-            </span>
-            <div>
-              <b>{t}</b>
-              <p>{d}</p>
+          <div className="hero-copy reveal visible">
+            <span className="pill">● &nbsp; 100% On-Device AI</span>
+            <h1 className="shiny-title">
+              <ShinyText
+                text="Understand Any Codebase."
+                speed={1.65}
+                delay={0.2}
+                color="#c8cec3"
+                shineColor="#ffffff"
+                spread={105}
+              />
+              <ShinyText
+                text="Visually."
+                speed={1.65}
+                delay={0.36}
+                color="#c8cec3"
+                shineColor="#ffffff"
+                spread={105}
+              />
+              <ShinyText
+                className="shiny-accent"
+                text="Privately."
+                color="#91d719"
+                shineColor="#f2ffce"
+                speed={1.65}
+                delay={0.52}
+                spread={105}
+              />
+            </h1>
+            <p>
+              CodeAtlas is your on-device AI software architect. Upload any repository and get an
+              interactive digital twin of your codebase.
+            </p>
+            <div className="actions">
+              <button className="primary" type="button" onClick={chooseRepository}>
+                <Icon name="folder" />
+                {repoName || 'Upload Repository'}
+              </button>
+              <button type="button" onClick={() => openDashboard('galaxy')}>
+                <Icon name="play" />
+                Open Dashboard
+              </button>
             </div>
-          </article>
-        ))}
-      </section>
+            <small className="safe">
+              <Icon name="shield" size={13} />
+              {repoName ? `${repoName} selected locally.` : 'Your code never leaves your machine.'}
+            </small>
+          </div>
+        </section>
+      </div>
       <section className="section galaxy-story" id="galaxy">
         <Heading
-          eyebrow="PROJECT GALAXY"
+          eyebrow="PROJECT GALAXY · CONCEPT PREVIEW"
           title={
             <>
               See How Your Code
@@ -383,22 +384,25 @@ function App() {
             </>
           }
         >
-          Explore modules, services, and dependencies as a living map of your software.
+          Try the 3D interaction here. Uploaded projects use a truthful folder topology until the
+          backend dependency graph is implemented.
         </Heading>
-        <Suspense
-          fallback={
-            <div className="galaxy-loading">
-              <span>✳</span>
-              <b>Initializing 3D galaxy…</b>
-            </div>
-          }
-        >
-          <ProjectGalaxy />
-        </Suspense>
+        <div className="reveal">
+          <Suspense
+            fallback={
+              <div className="galaxy-loading">
+                <span>✳</span>
+                <b>Initializing 3D galaxy…</b>
+              </div>
+            }
+          >
+            <ProjectGalaxy />
+          </Suspense>
+        </div>
       </section>
       <section className="section simulator-section" id="simulator">
         <Heading
-          eyebrow="WHAT-IF SIMULATOR"
+          eyebrow="WHAT-IF SIMULATOR · CONCEPT PREVIEW"
           title={
             <>
               Know the impact
@@ -407,10 +411,36 @@ function App() {
             </>
           }
         >
-          Model architectural changes against the project map and reveal what could break before
-          touching the code.
+          Preview the intended impact-analysis experience. Results below are demo scenarios, not
+          backend analysis.
         </Heading>
-        <WhatIfSimulator />
+        <div className="reveal">
+          <WhatIfSimulator />
+        </div>
+      </section>
+      <section className="outcome-strip reveal" aria-label="CodeAtlas outcomes">
+        <header>
+          <small>FROM UNKNOWN REPOSITORY TO CONFIDENT CHANGE</small>
+          <h2>Context that compounds as you explore.</h2>
+          <p>
+            Every view shares the same project map, so insights from one feature become context for
+            the next.
+          </p>
+        </header>
+        <div>
+          {[
+            ['01', 'Map', 'See modules, boundaries, and data flow.'],
+            ['02', 'Learn', 'Follow the shortest path to understanding.'],
+            ['03', 'Evaluate', 'Find risk and simulate architectural impact.'],
+            ['04', 'Act', 'Ask grounded questions and change with confidence.'],
+          ].map(([number, title, copy]) => (
+            <article key={title}>
+              <span>{number}</span>
+              <b>{title}</b>
+              <p>{copy}</p>
+            </article>
+          ))}
+        </div>
       </section>
       <section className="section" id="how">
         <Heading eyebrow="HOW IT WORKS" title="From Code to Clarity in Seconds">
@@ -444,7 +474,7 @@ function App() {
         />
         <div className="feature-grid">
           {features.map(([i, t, d], n) => {
-            const link = featureLinks[t]
+            const view = featureViews[t]
             const content = (
               <>
                 <span>
@@ -453,32 +483,131 @@ function App() {
                 <div>
                   <b>{t}</b>
                   <p>{d}</p>
-                  <i>{link ? 'Explore →' : 'Coming soon'}</i>
+                  <i>Open dashboard →</i>
                 </div>
               </>
             )
-            return link ? (
-              <a href={link} className={`feature-card completed reveal c${n}`} key={t}>
+            return (
+              <a
+                href="#dashboard"
+                onClick={(event) => {
+                  event.preventDefault()
+                  openDashboard(view)
+                }}
+                className={`feature-card completed reveal c${n}`}
+                key={t}
+              >
                 {content}
               </a>
-            ) : (
-              <article className={`feature-card reveal c${n}`} key={t}>
-                {content}
-              </article>
             )
           })}
         </div>
       </section>
-      <section className="section showcase" id="showcase">
+      <section className="section journeys-section" id="showcase">
         <Heading
-          eyebrow="SEE IT IN ACTION"
+          eyebrow="START WITH YOUR QUESTION"
           title={
             <>
-              Your Codebase, <em>Visualized</em>
+              One Codebase.
+              <br />
+              <em>Three Ways Forward.</em>
             </>
           }
-        />
-        <Dashboard />
+        >
+          Choose the outcome you need and CodeAtlas takes you to the right project context.
+        </Heading>
+        <div className="journey-grid">
+          {[
+            {
+              number: '01',
+              tone: 'teal',
+              icon: 'ai' as IconName,
+              title: 'Join an unfamiliar codebase',
+              copy: 'Skip the scavenger hunt. Get the project brief, key concepts, entry points, and a safe first-change path.',
+              view: 'onboarding' as WorkspaceView,
+              meta: ['Project brief', '30-minute path', 'Good first issue'],
+            },
+            {
+              number: '02',
+              tone: 'amber',
+              icon: 'branch' as IconName,
+              title: 'Preview impact planning',
+              copy: 'Explore the planned What-if workflow while dependency analysis remains a backend roadmap item.',
+              view: 'simulator' as WorkspaceView,
+              meta: ['Concept UI', 'Demo scenario', 'Engine planned'],
+            },
+            {
+              number: '03',
+              tone: 'coral',
+              icon: 'health' as IconName,
+              title: 'Inspect repository measurements',
+              copy: 'Review measured file counts, directory totals, sizes, empty files, and language distribution.',
+              view: 'health' as WorkspaceView,
+              meta: ['File inventory', 'Size signals', 'Language mix'],
+            },
+          ].map((item) => (
+            <a
+              href="#dashboard"
+              className={`journey-card ${item.tone} reveal`}
+              onClick={(event) => {
+                event.preventDefault()
+                openDashboard(item.view)
+              }}
+              key={item.number}
+            >
+              <header>
+                <span>{item.number}</span>
+                <i>
+                  <Icon name={item.icon} />
+                </i>
+              </header>
+              <div>
+                <small>DEVELOPER JOURNEY</small>
+                <h3>{item.title}</h3>
+                <p>{item.copy}</p>
+              </div>
+              <ul>
+                {item.meta.map((value) => (
+                  <li key={value}>✓ {value}</li>
+                ))}
+              </ul>
+              <footer>
+                Open in dashboard <span>→</span>
+              </footer>
+            </a>
+          ))}
+        </div>
+        <div className="journey-proof reveal">
+          <div>
+            <small>SHARED PROJECT INTELLIGENCE</small>
+            <h3>Explore once. Build context everywhere.</h3>
+            <p>
+              Live views share one backend scan. Concept previews are clearly separated from
+              measured project data.
+            </p>
+            <button onClick={() => openDashboard('architecture')}>
+              Explore the full workspace <Icon name="arrow" size={14} />
+            </button>
+          </div>
+          <dl>
+            <div>
+              <dt>9</dt>
+              <dd>Architecture checks</dd>
+            </div>
+            <div>
+              <dt>1</dt>
+              <dd>Python symbol parser</dd>
+            </div>
+            <div>
+              <dt>5+</dt>
+              <dd>Measured scan signals</dd>
+            </div>
+            <div>
+              <dt>100%</dt>
+              <dd>Local workspace</dd>
+            </div>
+          </dl>
+        </div>
       </section>
       <section className="section security" id="security">
         <Heading

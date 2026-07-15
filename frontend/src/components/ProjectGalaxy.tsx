@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import type { ProjectAnalysis } from '../api/codeAtlas'
 import './ProjectGalaxy.css'
 import './ProjectGalaxy3D.css'
 
@@ -12,8 +13,13 @@ type Node = {
   files: number
   language: string
   description: string
+  owner?: string
+  coverage?: number
+  risk?: 'Low' | 'Medium' | 'High'
+  size?: number
 }
-const nodes: Node[] = [
+
+const demoNodes: Node[] = [
   {
     id: 'core',
     kind: 'core',
@@ -21,6 +27,9 @@ const nodes: Node[] = [
     files: 52,
     language: 'TypeScript',
     description: 'Shared domain logic and application orchestration.',
+    owner: 'Platform',
+    coverage: 86,
+    risk: 'Medium',
   },
   {
     id: 'web',
@@ -29,6 +38,9 @@ const nodes: Node[] = [
     files: 38,
     language: 'React',
     description: 'Customer-facing web application and UI routes.',
+    owner: 'Experience',
+    coverage: 81,
+    risk: 'Low',
   },
   {
     id: 'auth',
@@ -37,6 +49,9 @@ const nodes: Node[] = [
     files: 19,
     language: 'TypeScript',
     description: 'Identity, sessions, and permission enforcement.',
+    owner: 'Security',
+    coverage: 72,
+    risk: 'High',
   },
   {
     id: 'api',
@@ -45,6 +60,9 @@ const nodes: Node[] = [
     files: 31,
     language: 'TypeScript',
     description: 'Public API gateway and request orchestration.',
+    owner: 'Platform',
+    coverage: 79,
+    risk: 'Medium',
   },
   {
     id: 'database',
@@ -53,6 +71,9 @@ const nodes: Node[] = [
     files: 16,
     language: 'SQL',
     description: 'Persistence models, migrations, and query adapters.',
+    owner: 'Data',
+    coverage: 84,
+    risk: 'High',
   },
   {
     id: 'shared',
@@ -61,6 +82,9 @@ const nodes: Node[] = [
     files: 27,
     language: 'TypeScript',
     description: 'Types, utilities, and reusable project primitives.',
+    owner: 'Platform',
+    coverage: 93,
+    risk: 'Low',
   },
   {
     id: 'workers',
@@ -69,6 +93,9 @@ const nodes: Node[] = [
     files: 14,
     language: 'Node.js',
     description: 'Asynchronous tasks and event processing.',
+    owner: 'Operations',
+    coverage: 68,
+    risk: 'Medium',
   },
   {
     id: 'cli',
@@ -77,6 +104,9 @@ const nodes: Node[] = [
     files: 11,
     language: 'TypeScript',
     description: 'Developer commands and local automation tools.',
+    owner: 'Developer Tools',
+    coverage: 88,
+    risk: 'Low',
   },
   {
     id: 'cache',
@@ -85,9 +115,12 @@ const nodes: Node[] = [
     files: 8,
     language: 'Redis',
     description: 'Fast session and application data caching.',
+    owner: 'Infrastructure',
+    coverage: 64,
+    risk: 'Medium',
   },
 ]
-const edges = [
+const demoEdges: ReadonlyArray<readonly [string, string]> = [
   ['core', 'web'],
   ['core', 'auth'],
   ['core', 'api'],
@@ -110,50 +143,136 @@ const colors: Record<Kind, number> = {
   interface: 0x2dd4bf,
 }
 
+const formatBytes = (bytes: number) =>
+  bytes < 1024
+    ? `${bytes} B`
+    : bytes < 1024 * 1024
+      ? `${(bytes / 1024).toFixed(1)} KB`
+      : `${(bytes / 1024 / 1024).toFixed(1)} MB`
+
+function nodeKind(name: string): Kind {
+  const value = name.toLowerCase()
+  if (/data|db|model|migration|schema|storage/.test(value)) return 'data'
+  if (/web|ui|front|client|app|view|component/.test(value)) return 'interface'
+  if (/service|api|server|worker|auth|backend/.test(value)) return 'service'
+  return 'core'
+}
+
+function liveTopology(project: ProjectAnalysis) {
+  const groups = new Map<string, ProjectAnalysis['scan']['scan']['files']>()
+  project.scan.scan.files.forEach((file) => {
+    const path = file.path.replace(/\\/g, '/')
+    const name = path.includes('/') ? path.split('/')[0] : 'Root files'
+    groups.set(name, [...(groups.get(name) || []), file])
+  })
+  const areas = [...groups.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 12)
+  const liveNodes: Node[] = [
+    {
+      id: '__project__',
+      kind: 'core',
+      pos: [0, 0, 0],
+      files: project.scan.scan.total_files,
+      language:
+        Object.entries(project.scan.scan.languages).sort((a, b) => b[1] - a[1])[0]?.[0] ||
+        'Unknown',
+      description: 'Repository root generated from the completed local backend scan.',
+      size: project.scan.health.summary.total_size,
+    },
+  ]
+  areas.forEach(([name, files], index) => {
+    const angle = (index / Math.max(areas.length, 1)) * Math.PI * 2
+    const radius = index % 2 === 0 ? 5.2 : 7.2
+    const languages = new Map<string, number>()
+    files.forEach((file) => languages.set(file.language, (languages.get(file.language) || 0) + 1))
+    liveNodes.push({
+      id: name,
+      kind: nodeKind(name),
+      pos: [Math.cos(angle) * radius, Math.sin(angle * 1.7) * 2.8, Math.sin(angle) * radius * 0.48],
+      files: files.length,
+      language: [...languages].sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown',
+      description: `${files.length} scanned files grouped under the ${name} top-level area.`,
+      size: files.reduce((total, file) => total + file.size, 0),
+    })
+  })
+  return {
+    nodes: liveNodes,
+    edges: areas.map(([name]) => ['__project__', name] as const),
+  }
+}
+
 function label(text: string, color: number) {
-  const c = document.createElement('canvas')
-  c.width = 256
-  c.height = 64
-  const x = c.getContext('2d')!
-  x.font = '600 22px Inter'
-  x.textAlign = 'center'
-  x.textBaseline = 'middle'
-  x.fillStyle = 'rgba(5,5,5,.82)'
-  x.roundRect(4, 4, 248, 56, 14)
-  x.fill()
-  x.strokeStyle = `#${color.toString(16).padStart(6, '0')}`
-  x.globalAlpha = 0.55
-  x.stroke()
-  x.globalAlpha = 1
-  x.fillStyle = '#f3f5f0'
-  x.fillText(text.toUpperCase(), 128, 32)
-  const texture = new THREE.CanvasTexture(c)
+  const canvas = document.createElement('canvas')
+  canvas.width = 300
+  canvas.height = 76
+  const context = canvas.getContext('2d')!
+  context.font = '700 25px Inter'
+  context.textAlign = 'center'
+  context.textBaseline = 'middle'
+  context.fillStyle = 'rgba(4,6,4,.94)'
+  context.roundRect(4, 4, 292, 68, 15)
+  context.fill()
+  context.strokeStyle = `#${color.toString(16).padStart(6, '0')}`
+  context.globalAlpha = 0.8
+  context.lineWidth = 2
+  context.stroke()
+  context.globalAlpha = 1
+  context.fillStyle = '#f3f5f0'
+  context.fillText(text.toUpperCase(), 150, 38)
+  const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
   return texture
 }
 
-export default function ProjectGalaxy() {
-  const mount = useRef<HTMLDivElement>(null),
-    cameraRef = useRef<THREE.PerspectiveCamera | null>(null),
-    controlsRef = useRef<OrbitControls | null>(null),
-    objects = useRef(new Map<string, THREE.Group>()),
+export default function ProjectGalaxy({ project }: { project?: ProjectAnalysis }) {
+  const topology = useMemo(
+    () => (project ? liveTopology(project) : { nodes: demoNodes, edges: demoEdges }),
+    [project],
+  )
+  const { nodes, edges } = topology
+  const mount = useRef<HTMLDivElement>(null)
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null),
+    controlsRef = useRef<OrbitControls | null>(null)
+  const objects = useRef(new Map<string, THREE.Group>()),
     links = useRef<Array<{ mesh: THREE.Mesh; from: string; to: string }>>([])
-  const [selected, setSelected] = useState('core'),
+  const [selected, setSelected] = useState(nodes[0].id),
     [hovered, setHovered] = useState(''),
     [filter, setFilter] = useState<Kind | 'all'>('all'),
-    [zoom, setZoom] = useState(100)
-  const detail = nodes.find((n) => n.id === selected) ?? nodes[0]
+    [zoom, setZoom] = useState(100),
+    [orbiting, setOrbiting] = useState(true)
+  const detail = nodes.find((node) => node.id === selected) ?? nodes[0]
+  const connected = edges
+    .filter((edge) => edge.includes(detail.id))
+    .map((edge) => (edge[0] === detail.id ? edge[1] : edge[0]))
+
+  useEffect(() => {
+    if (!nodes.some((node) => node.id === selected)) setSelected(nodes[0].id)
+  }, [nodes, selected])
+
+  const focusNode = (id: string) => {
+    setSelected(id)
+    const camera = cameraRef.current,
+      controls = controlsRef.current,
+      target = objects.current.get(id)
+    if (!camera || !controls || !target) return
+    controls.autoRotate = false
+    setOrbiting(false)
+    const direction = camera.position.clone().sub(controls.target).normalize()
+    controls.target.copy(target.position)
+    camera.position.copy(target.position.clone().add(direction.multiplyScalar(8.5)))
+    controls.update()
+  }
+
   useEffect(() => {
     const host = mount.current
     if (!host) return
     const scene = new THREE.Scene()
-    scene.fog = new THREE.FogExp2(0x050705, 0.034)
-    const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100)
+    scene.fog = new THREE.FogExp2(0x030503, 0.026)
+    const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 100)
     camera.position.set(0, 2.8, 15)
     cameraRef.current = camera
-    const renderer = new THREE.WebGLRenderer({ antialias: true })
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.6))
-    renderer.setClearColor(0x050705)
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7))
+    renderer.setClearColor(0x040604)
     renderer.outputColorSpace = THREE.SRGBColorSpace
     host.appendChild(renderer.domElement)
     const controls = new OrbitControls(camera, renderer.domElement)
@@ -163,169 +282,186 @@ export default function ProjectGalaxy() {
     controls.minDistance = 7
     controls.maxDistance = 24
     controls.autoRotate = true
-    controls.autoRotateSpeed = 0.32
+    controls.autoRotateSpeed = 0.28
     controlsRef.current = controls
     controls.addEventListener('change', () =>
       setZoom(Math.round(1500 / camera.position.distanceTo(controls.target))),
     )
-    scene.add(new THREE.AmbientLight(0xffffff, 0.3))
-    const light = new THREE.PointLight(0xb7ff2a, 25, 20)
-    light.position.set(0, 1, 3)
-    scene.add(light)
-    const starsGeo = new THREE.BufferGeometry(),
-      starPos = new Float32Array(1800)
-    for (let i = 0; i < starPos.length; i++) starPos[i] = (Math.random() - 0.5) * 28
-    starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3))
+    scene.add(new THREE.AmbientLight(0xffffff, 0.52))
+    const key = new THREE.PointLight(0xb7ff2a, 34, 24)
+    key.position.set(1, 3, 5)
+    scene.add(key)
+    const fill = new THREE.PointLight(0x2dd4bf, 18, 20)
+    fill.position.set(-5, -2, 4)
+    scene.add(fill)
+    const grid = new THREE.GridHelper(22, 22, 0x26331f, 0x111710)
+    grid.position.y = -4.7
+    ;(grid.material as THREE.Material).transparent = true
+    ;(grid.material as THREE.Material).opacity = 0.34
+    scene.add(grid)
+    const starGeometry = new THREE.BufferGeometry(),
+      starPositions = new Float32Array(2100)
+    for (let i = 0; i < starPositions.length; i++) starPositions[i] = (Math.random() - 0.5) * 30
+    starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3))
     const stars = new THREE.Points(
-      starsGeo,
-      new THREE.PointsMaterial({ color: 0x829078, size: 0.026, transparent: true, opacity: 0.6 }),
+      starGeometry,
+      new THREE.PointsMaterial({ color: 0x93a58d, size: 0.035, transparent: true, opacity: 0.72 }),
     )
     scene.add(stars)
-    ;[3.6, 5.8, 7.4].forEach((r, i) => {
+    ;[3.6, 5.8, 7.4].forEach((radius, index) => {
       const ring = new THREE.Mesh(
-        new THREE.RingGeometry(r, r + 0.013, 128),
+        new THREE.RingGeometry(radius, radius + 0.018, 128),
         new THREE.MeshBasicMaterial({
-          color: 0x6e8b57,
+          color: 0x78935c,
           transparent: true,
-          opacity: 0.16,
+          opacity: 0.22,
           side: THREE.DoubleSide,
         }),
       )
-      ring.rotation.set(Math.PI / 2.2, i * 0.36, i * 0.18)
+      ring.rotation.set(Math.PI / 2.2, index * 0.36, index * 0.18)
       scene.add(ring)
     })
+
     const map = new Map<string, THREE.Group>()
     objects.current = map
-    nodes.forEach((n) => {
+    nodes.forEach((node) => {
       const group = new THREE.Group()
-      group.position.set(...n.pos)
-      group.userData = { id: n.id }
-      const radius = n.id === 'core' ? 0.64 : 0.36 + Math.min(n.files, 50) * 0.004
+      group.position.set(...node.pos)
+      group.userData = { id: node.id }
+      const radius = node.id === 'core' ? 0.7 : 0.4 + Math.min(node.files, 50) * 0.004
       const planet = new THREE.Mesh(
-        n.id === 'core'
+        node.id === 'core'
           ? new THREE.IcosahedronGeometry(radius, 2)
-          : new THREE.SphereGeometry(radius, 24, 24),
+          : new THREE.SphereGeometry(radius, 28, 28),
         new THREE.MeshStandardMaterial({
-          color: 0x090c08,
-          emissive: colors[n.kind],
-          emissiveIntensity: n.id === 'core' ? 0.85 : 0.45,
-          roughness: 0.25,
-          metalness: 0.4,
+          color: 0x0a0d09,
+          emissive: colors[node.kind],
+          emissiveIntensity: node.id === 'core' ? 1.05 : 0.72,
+          roughness: 0.2,
+          metalness: 0.32,
         }),
       )
-      planet.userData = { id: n.id }
+      planet.userData = { id: node.id }
       group.add(planet)
       group.add(
         new THREE.Mesh(
           new THREE.IcosahedronGeometry(radius * 1.28, 1),
           new THREE.MeshBasicMaterial({
-            color: colors[n.kind],
+            color: colors[node.kind],
             wireframe: true,
             transparent: true,
-            opacity: n.id === 'core' ? 0.48 : 0.22,
+            opacity: node.id === 'core' ? 0.64 : 0.34,
           }),
         ),
       )
       const halo = new THREE.Mesh(
-        new THREE.TorusGeometry(radius * 1.55, 0.012, 8, 64),
-        new THREE.MeshBasicMaterial({ color: colors[n.kind], transparent: true, opacity: 0.4 }),
+        new THREE.TorusGeometry(radius * 1.62, 0.018, 8, 72),
+        new THREE.MeshBasicMaterial({ color: colors[node.kind], transparent: true, opacity: 0.62 }),
       )
       halo.rotation.x = Math.PI / 2
       group.add(halo)
       const sprite = new THREE.Sprite(
         new THREE.SpriteMaterial({
-          map: label(n.id, colors[n.kind]),
+          map: label(
+            node.id === '__project__' ? project?.metadata.project_name || 'project' : node.id,
+            colors[node.kind],
+          ),
           transparent: true,
           depthTest: false,
         }),
       )
-      sprite.position.y = radius + 0.58
-      sprite.scale.set(1.75, 0.44, 1)
+      sprite.position.y = radius + 0.66
+      sprite.scale.set(2.05, 0.52, 1)
       group.add(sprite)
       scene.add(group)
-      map.set(n.id, group)
+      map.set(node.id, group)
     })
+
     const flow: Array<{ dot: THREE.Mesh; curve: THREE.QuadraticBezierCurve3; offset: number }> = [],
       lineList: Array<{ mesh: THREE.Mesh; from: string; to: string }> = []
     links.current = lineList
-    edges.forEach(([from, to], i) => {
-      const a = nodes.find((n) => n.id === from)!,
-        b = nodes.find((n) => n.id === to)!,
+    edges.forEach(([from, to], index) => {
+      const a = nodes.find((node) => node.id === from)!,
+        b = nodes.find((node) => node.id === to)!,
         start = new THREE.Vector3(...a.pos),
         end = new THREE.Vector3(...b.pos),
         mid = start
           .clone()
           .lerp(end, 0.5)
-          .add(new THREE.Vector3(0, 0.45 + (i % 3) * 0.16, (i % 2 ? 1 : -1) * 0.35)),
+          .add(new THREE.Vector3(0, 0.45 + (index % 3) * 0.16, (index % 2 ? 1 : -1) * 0.35)),
         curve = new THREE.QuadraticBezierCurve3(start, mid, end)
       const tube = new THREE.Mesh(
-        new THREE.TubeGeometry(curve, 32, 0.012, 5),
-        new THREE.MeshBasicMaterial({ color: colors[a.kind], transparent: true, opacity: 0.24 }),
+        new THREE.TubeGeometry(curve, 36, 0.019, 6),
+        new THREE.MeshBasicMaterial({ color: colors[a.kind], transparent: true, opacity: 0.38 }),
       )
       scene.add(tube)
       lineList.push({ mesh: tube, from, to })
-      for (let p = 0; p < 2; p++) {
+      for (let point = 0; point < 2; point++) {
         const dot = new THREE.Mesh(
-          new THREE.SphereGeometry(0.038, 8, 8),
+          new THREE.SphereGeometry(0.052, 10, 10),
           new THREE.MeshBasicMaterial({ color: colors[b.kind] }),
         )
         scene.add(dot)
-        flow.push({ dot, curve, offset: (p * 0.5 + i * 0.071) % 1 })
+        flow.push({ dot, curve, offset: (point * 0.5 + index * 0.071) % 1 })
       }
     })
-    const ray = new THREE.Raycaster(),
+
+    const raycaster = new THREE.Raycaster(),
       pointer = new THREE.Vector2()
     let down = [0, 0]
-    const pick = (e: PointerEvent) => {
+    const pick = (event: PointerEvent) => {
       const rect = renderer.domElement.getBoundingClientRect()
       pointer.set(
-        ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        -(((e.clientY - rect.top) / rect.height) * 2 - 1),
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -(((event.clientY - rect.top) / rect.height) * 2 - 1),
       )
-      ray.setFromCamera(pointer, camera)
-      let hit = ray.intersectObjects([...map.values()], true)[0]?.object
+      raycaster.setFromCamera(pointer, camera)
+      let hit = raycaster.intersectObjects([...map.values()], true)[0]?.object
       while (hit && !hit.userData.id) hit = hit.parent!
       return hit?.userData.id as string | undefined
     }
-    const move = (e: PointerEvent) => {
-        const id = pick(e) ?? ''
-        setHovered(id)
-        renderer.domElement.style.cursor = id ? 'pointer' : 'grab'
-      },
-      downFn = (e: PointerEvent) => {
-        down = [e.clientX, e.clientY]
-        controls.autoRotate = false
-      },
-      up = (e: PointerEvent) => {
-        if (Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 5) {
-          const id = pick(e)
-          if (id) setSelected(id)
-        }
+    const move = (event: PointerEvent) => {
+      const id = pick(event) ?? ''
+      setHovered(id)
+      renderer.domElement.style.cursor = id ? 'pointer' : 'grab'
+    }
+    const pointerDown = (event: PointerEvent) => {
+      down = [event.clientX, event.clientY]
+      controls.autoRotate = false
+      setOrbiting(false)
+    }
+    const pointerUp = (event: PointerEvent) => {
+      if (Math.hypot(event.clientX - down[0], event.clientY - down[1]) < 5) {
+        const id = pick(event)
+        if (id) focusNode(id)
       }
+    }
     renderer.domElement.addEventListener('pointermove', move)
-    renderer.domElement.addEventListener('pointerdown', downFn)
-    renderer.domElement.addEventListener('pointerup', up)
+    renderer.domElement.addEventListener('pointerdown', pointerDown)
+    renderer.domElement.addEventListener('pointerup', pointerUp)
     const resize = () => {
-        const r = host.getBoundingClientRect()
-        camera.aspect = r.width / r.height
+        const rect = host.getBoundingClientRect()
+        camera.aspect = rect.width / rect.height
         camera.updateProjectionMatrix()
-        renderer.setSize(r.width, r.height)
+        renderer.setSize(rect.width, rect.height)
       },
       observer = new ResizeObserver(resize)
     observer.observe(host)
     resize()
-    const clock = new THREE.Clock()
+    const started = performance.now()
     let frame = 0
     const animate = () => {
       frame = requestAnimationFrame(animate)
-      const t = clock.getElapsedTime()
+      const time = (performance.now() - started) / 1000
       controls.update()
-      stars.rotation.y = t * 0.008
-      map.forEach((g, id) => {
-        g.rotation.y += id === 'core' ? 0.006 : 0.002
-        g.children[1].rotation.x += 0.003
+      stars.rotation.y = time * 0.008
+      map.forEach((group, id) => {
+        group.rotation.y += id === 'core' ? 0.006 : 0.002
+        group.children[1].rotation.x += 0.003
       })
-      flow.forEach((f) => f.dot.position.copy(f.curve.getPoint((t * 0.12 + f.offset) % 1)))
+      flow.forEach((item) =>
+        item.dot.position.copy(item.curve.getPoint((time * 0.12 + item.offset) % 1)),
+      )
       renderer.render(scene, camera)
     }
     animate()
@@ -334,72 +470,105 @@ export default function ProjectGalaxy() {
       observer.disconnect()
       controls.dispose()
       renderer.domElement.removeEventListener('pointermove', move)
-      renderer.domElement.removeEventListener('pointerdown', downFn)
-      renderer.domElement.removeEventListener('pointerup', up)
-      scene.traverse((o) => {
-        if (o instanceof THREE.Mesh || o instanceof THREE.Points || o instanceof THREE.Sprite) {
-          o.geometry?.dispose?.()
-          const m = o.material as THREE.Material | THREE.Material[]
-          ;(Array.isArray(m) ? m : [m]).forEach((v) => {
-            if (v instanceof THREE.SpriteMaterial) v.map?.dispose()
-            v.dispose()
+      renderer.domElement.removeEventListener('pointerdown', pointerDown)
+      renderer.domElement.removeEventListener('pointerup', pointerUp)
+      scene.traverse((object) => {
+        if (
+          object instanceof THREE.Mesh ||
+          object instanceof THREE.Points ||
+          object instanceof THREE.Sprite
+        ) {
+          object.geometry?.dispose?.()
+          const material = object.material as THREE.Material | THREE.Material[]
+          ;(Array.isArray(material) ? material : [material]).forEach((value) => {
+            if (value instanceof THREE.SpriteMaterial) value.map?.dispose()
+            value.dispose()
           })
         }
       })
       renderer.dispose()
       renderer.domElement.remove()
     }
-  }, [])
+  }, [edges, nodes, project?.metadata.project_name])
+
   useEffect(() => {
-    objects.current.forEach((g, id) => {
-      const n = nodes.find((v) => v.id === id)!
-      g.visible = filter === 'all' || n.kind === filter || id === selected
-      g.scale.setScalar(id === selected ? 1.27 : id === hovered ? 1.13 : 1)
+    objects.current.forEach((group, id) => {
+      const node = nodes.find((item) => item.id === id)!
+      group.visible = filter === 'all' || node.kind === filter || id === selected
+      group.scale.setScalar(id === selected ? 1.32 : id === hovered ? 1.16 : 1)
     })
-    links.current.forEach((l) => {
-      l.mesh.visible =
+    links.current.forEach((link) => {
+      link.mesh.visible =
         (filter === 'all' ||
-          nodes.find((n) => n.id === l.from)?.kind === filter ||
-          l.from === selected) &&
-        (filter === 'all' || nodes.find((n) => n.id === l.to)?.kind === filter || l.to === selected)
-      ;(l.mesh.material as THREE.MeshBasicMaterial).opacity =
-        l.from === selected || l.to === selected ? 0.68 : 0.16
+          nodes.find((node) => node.id === link.from)?.kind === filter ||
+          link.from === selected) &&
+        (filter === 'all' ||
+          nodes.find((node) => node.id === link.to)?.kind === filter ||
+          link.to === selected)
+      ;(link.mesh.material as THREE.MeshBasicMaterial).opacity =
+        link.from === selected || link.to === selected ? 0.82 : 0.22
     })
-  }, [filter, hovered, selected])
+  }, [edges, filter, hovered, nodes, selected])
+
   const zoomBy = (factor: number) => {
-      const c = cameraRef.current,
-        o = controlsRef.current
-      if (!c || !o) return
-      c.position.sub(o.target).multiplyScalar(factor).add(o.target)
-      o.update()
-    },
-    reset = () => {
-      const c = cameraRef.current,
-        o = controlsRef.current
-      if (!c || !o) return
-      c.position.set(0, 2.8, 15)
-      o.target.set(0, 0, 0)
-      o.autoRotate = true
-      o.update()
-    }
+    const camera = cameraRef.current,
+      controls = controlsRef.current
+    if (!camera || !controls) return
+    camera.position.sub(controls.target).multiplyScalar(factor).add(controls.target)
+    controls.update()
+  }
+  const reset = () => {
+    const camera = cameraRef.current,
+      controls = controlsRef.current
+    if (!camera || !controls) return
+    camera.position.set(0, 2.8, 15)
+    controls.target.set(0, 0, 0)
+    controls.autoRotate = true
+    setOrbiting(true)
+    setSelected(nodes[0].id)
+    controls.update()
+  }
+  const toggleOrbit = () => {
+    const controls = controlsRef.current
+    if (!controls) return
+    controls.autoRotate = !orbiting
+    setOrbiting((value) => !value)
+  }
+
   return (
     <div className="project-galaxy galaxy-3d">
       <div className="galaxy-toolbar">
         <div>
           <span className="galaxy-live">
             <i />
-            3D LIVE MAP
+            {project ? 'LIVE SCAN' : 'CONCEPT PREVIEW'}
           </span>
-          <b>commerce-platform</b>
+          <b>{project?.metadata.project_name || 'Example commerce platform'}</b>
         </div>
         <div className="galaxy-filters">
-          {(['all', 'core', 'service', 'data', 'interface'] as const).map((k) => (
-            <button className={filter === k ? 'active' : ''} onClick={() => setFilter(k)} key={k}>
-              {k}
+          {(['all', 'core', 'service', 'data', 'interface'] as const).map((kind) => (
+            <button
+              className={filter === kind ? 'active' : ''}
+              onClick={() => setFilter(kind)}
+              key={kind}
+            >
+              {kind}
             </button>
           ))}
         </div>
         <div className="galaxy-tools">
+          <select
+            value={selected}
+            onChange={(event) => focusNode(event.target.value)}
+            aria-label="Focus module"
+          >
+            {nodes.map((node) => (
+              <option value={node.id} key={node.id}>
+                {node.id === '__project__' ? project?.metadata.project_name : node.id}
+              </option>
+            ))}
+          </select>
+          <button onClick={toggleOrbit}>{orbiting ? 'Pause' : 'Orbit'}</button>
           <button onClick={() => zoomBy(1.15)}>−</button>
           <span>{zoom}%</span>
           <button onClick={() => zoomBy(0.86)}>+</button>
@@ -411,25 +580,36 @@ export default function ProjectGalaxy() {
           <div className="galaxy-scanline" />
           <div className="galaxy-mode">
             <i />
-            ORBIT MODE
+            {orbiting ? 'AUTO ORBIT' : 'FOCUS MODE'}
           </div>
           <div className="galaxy-telemetry">
-            <small>ARCHITECTURE SIGNAL</small>
+            <small>{project ? 'SCAN-DERIVED TOPOLOGY' : 'DEMO TOPOLOGY'}</small>
             <b>
               <i />
-              Mapping dependencies
+              {project ? 'Local scan loaded' : 'Example data loaded'}
             </b>
             <div>
               <span>
                 <strong>{nodes.length}</strong> modules
               </span>
               <span>
-                <strong>{edges.length}</strong> connections
+                <strong>{edges.length}</strong> {project ? 'containment links' : 'demo links'}
               </span>
               <span>
-                <strong>100%</strong> local
+                <strong>{new Set(nodes.map((node) => node.kind)).size}</strong> layers
               </span>
             </div>
+          </div>
+          <div className="galaxy-selected-path">
+            <small>SELECTED PATH</small>
+            <b>{detail.id === '__project__' ? project?.metadata.project_name : detail.id}</b>
+            <span>→</span>
+            <em>
+              {connected
+                .slice(0, 3)
+                .map((id) => (id === '__project__' ? project?.metadata.project_name : id))
+                .join(' · ')}
+            </em>
           </div>
           <div className="galaxy-legend">
             <span>
@@ -450,35 +630,56 @@ export default function ProjectGalaxy() {
             </span>
           </div>
           <div className="galaxy-instruction">
-            Drag to orbit · Right-drag to pan · Use +/− to zoom · Scroll to continue
+            Drag to rotate · Click a planet to inspect · Scroll controls stay on the page
           </div>
         </div>
         <aside className="galaxy-details">
-          <div className={`detail-mark ${detail.kind}`}>{detail.id.slice(0, 2)}</div>
-          <small>{detail.kind} module</small>
-          <h3>{detail.id}</h3>
+          <div className={`detail-mark ${detail.kind}`}>
+            {detail.id === '__project__'
+              ? project?.metadata.project_name.slice(0, 2)
+              : detail.id.slice(0, 2)}
+          </div>
+          <small>{project ? `scanned ${detail.kind} area` : `example ${detail.kind} module`}</small>
+          <h3>{detail.id === '__project__' ? project?.metadata.project_name : detail.id}</h3>
           <p>{detail.description}</p>
           <dl>
-            <dt>Files</dt>
+            <dt>{project ? 'Scanned files' : 'Demo files'}</dt>
             <dd>{detail.files}</dd>
             <dt>Language</dt>
             <dd>{detail.language}</dd>
-            <dt>Dependencies</dt>
-            <dd>{edges.filter((e) => e.includes(detail.id)).length}</dd>
-            <dt>Health</dt>
-            <dd className="healthy">Healthy</dd>
+            {project ? (
+              <>
+                <dt>Combined size</dt>
+                <dd>{formatBytes(detail.size || 0)}</dd>
+              </>
+            ) : (
+              <>
+                <dt>Demo owner</dt>
+                <dd>{detail.owner}</dd>
+                <dt>Demo coverage</dt>
+                <dd>{detail.coverage}%</dd>
+              </>
+            )}
+            <dt>{project ? 'Containment links' : 'Demo links'}</dt>
+            <dd>{connected.length}</dd>
+            {!project && (
+              <>
+                <dt>Demo risk</dt>
+                <dd className={`risk-${detail.risk?.toLowerCase()}`}>{detail.risk}</dd>
+              </>
+            )}
           </dl>
+          <button className="focus-module" onClick={() => focusNode(detail.id)}>
+            ◎ Focus this module
+          </button>
           <div className="detail-deps">
-            <span>CONNECTED TO</span>
-            {edges
-              .filter((e) => e.includes(detail.id))
-              .map((e) => (e[0] === detail.id ? e[1] : e[0]))
-              .map((id) => (
-                <button onClick={() => setSelected(id)} key={id}>
-                  {id}
-                  <i>→</i>
-                </button>
-              ))}
+            <span>{project ? 'CONNECTED AREAS' : 'EXAMPLE MODULES'}</span>
+            {connected.map((id) => (
+              <button onClick={() => focusNode(id)} key={id}>
+                {id === '__project__' ? project?.metadata.project_name : id}
+                <i>→</i>
+              </button>
+            ))}
           </div>
         </aside>
       </div>
