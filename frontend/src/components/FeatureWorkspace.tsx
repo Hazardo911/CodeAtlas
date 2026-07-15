@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { askProject, getAiStatus, type ChatSource, type ProjectAnalysis } from '../api/codeAtlas'
 import './FeatureWorkspace.css'
 import './Integration.css'
@@ -65,6 +65,8 @@ export default function FeatureWorkspace({
   )
   const [sources, setSources] = useState<ChatSource[]>([])
   const [chatLoading, setChatLoading] = useState(false)
+  const [chatSeconds, setChatSeconds] = useState(0)
+  const [answerMode, setAnswerMode] = useState<'scan' | 'ai' | 'preview'>('preview')
   const [aiStatus, setAiStatus] = useState(project?.aiStatus)
 
   const projectName = project?.metadata.project_name || 'No repository loaded'
@@ -76,6 +78,19 @@ export default function FeatureWorkspace({
   const architectureSignals = Object.entries(architecture?.details || {})
   const detectedLayers = architectureSignals.filter(([, detail]) => detail.detected)
   const aiReady = Boolean(aiStatus?.available && aiStatus.model_available)
+
+  useEffect(() => {
+    if (!chatLoading) {
+      setChatSeconds(0)
+      return
+    }
+    const started = Date.now()
+    const timer = window.setInterval(
+      () => setChatSeconds(Math.floor((Date.now() - started) / 1000)),
+      1000,
+    )
+    return () => window.clearInterval(timer)
+  }, [chatLoading])
 
   const learningFiles = useMemo(() => {
     const priority = [
@@ -113,6 +128,7 @@ export default function FeatureWorkspace({
       const response = await askProject(project.metadata.project_id, nextQuestion)
       setAnswer(response.answer)
       setSources(response.sources || [])
+      setAnswerMode(response.mode === 'scan' ? 'scan' : 'ai')
     } catch (reason) {
       setAnswer(reason instanceof Error ? reason.message : 'The local AI could not answer.')
     } finally {
@@ -450,10 +466,17 @@ export default function FeatureWorkspace({
                 <div className="chat-answer">
                   <span>CA</span>
                   <div>
-                    <small>CODEATLAS · {project ? 'BACKEND RESPONSE' : 'PREVIEW'}</small>
+                    <small>
+                      CODEATLAS ·{' '}
+                      {project
+                        ? answerMode === 'scan'
+                          ? 'VERIFIED SCAN ANSWER'
+                          : 'LOCAL AI ANSWER'
+                        : 'PREVIEW'}
+                    </small>
                     <p>
                       {chatLoading
-                        ? 'Building grounded context and running Phi-3 locally… The first answer can take a minute on CPU.'
+                        ? `Running local retrieval and Phi-3… ${chatSeconds}s elapsed. CPU inference can take 30–120 seconds.`
                         : answer}
                     </p>
                     {sources.length > 0 && (

@@ -51,7 +51,7 @@
 .upload-dialog small,
 .scan-state > small,
 .ready-state > small {
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.14em;
   color: var(--lime);
 }
@@ -151,7 +151,7 @@
 .github-import > a {
   margin-top: 10px;
   color: #a8b29f;
-  font-size: 9px;
+  font-size: 11px;
   text-decoration: none;
 }
 .github-import > a:hover {
@@ -256,8 +256,8 @@
   text-overflow: ellipsis;
   margin: 20px auto;
   max-width: 420px;
-  font: 9px ui-monospace;
-  color: #687068;
+  font: 11px ui-monospace;
+  color: #9aa398;
 }
 .scan-progress {
   height: 4px;
@@ -276,8 +276,8 @@
   display: flex;
   justify-content: space-between;
   margin-top: 9px;
-  color: #697069;
-  font-size: 9px;
+  color: #9aa398;
+  font-size: 11px;
 }
 .scan-numbers b {
   color: #b9c0b7;
@@ -292,8 +292,8 @@
   padding: 10px;
   border: 1px solid #202420;
   border-radius: 5px;
-  color: #505650;
-  font-size: 8px;
+  color: #929a90;
+  font-size: 10px;
 }
 .scan-steps .done {
   color: #9fc45b;
@@ -334,8 +334,8 @@
   font-size: 19px;
 }
 .repo-stats span {
-  font-size: 8px;
-  color: #656d65;
+  font-size: 10px;
+  color: #929a90;
   margin-top: 5px;
 }
 .language-list {
@@ -349,8 +349,8 @@
   padding: 7px 9px;
   border: 1px solid #293023;
   border-radius: 20px;
-  font-size: 8px;
-  color: #939b92;
+  font-size: 10px;
+  color: #b1b9ae;
 }
 .language-list b {
   color: var(--lime);

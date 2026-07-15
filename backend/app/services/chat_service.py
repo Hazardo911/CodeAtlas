@@ -12,6 +12,88 @@ from app.utils.helpers import read_json
 
 logger = logging.getLogger("codeatlas.chat_service")
 
+
+def _source(file_path: str) -> Dict[str, Any]:
+    return {
+        "file": file_path,
+        "score": None,
+        "line_start": None,
+        "line_end": None,
+    }
+
+
+def _quick_scan_answer(project_id: str, query: str) -> Dict[str, Any] | None:
+    """Answer common factual dashboard questions directly from verified scan data."""
+    cache = WORKSPACE_DIR / project_id / "cache"
+    summary_path = cache / "project_summary.json"
+    scan_path = cache / "scan_result.json"
+    if not summary_path.exists() or not scan_path.exists():
+        return None
+
+    summary = read_json(summary_path)
+    scan = read_json(scan_path)
+    normalized = query.lower().strip()
+    files = scan.get("files", [])
+    frameworks = summary.get("detected_frameworks", [])
+    languages = summary.get("detected_languages", {})
+    architecture = summary.get("architecture_overview", {})
+
+    manifest_names = {
+        "package.json", "pyproject.toml", "requirements.txt", "pubspec.yaml",
+        "pom.xml", "cargo.toml", "go.mod",
+    }
+    manifests = [item["path"] for item in files if item.get("name", "").lower() in manifest_names]
+
+    if "framework" in normalized or "technolog" in normalized:
+        answer = (
+            f"Detected frameworks: {', '.join(frameworks)}."
+            if frameworks
+            else "No registered framework was detected by the repository scanner."
+        )
+        return {"answer": answer, "sources": [_source(path) for path in manifests[:4]], "mode": "scan"}
+
+    if any(term in normalized for term in ("overview", "what is this project", "summar")):
+        detected_areas = [
+            name.replace("_", " ").title()
+            for name, value in architecture.items()
+            if isinstance(value, bool) and value
+        ]
+        top_languages = sorted(languages.items(), key=lambda item: item[1], reverse=True)[:4]
+        language_text = ", ".join(f"{name} ({count})" for name, count in top_languages) or "Unknown"
+        answer = (
+            f"This repository contains {scan.get('total_files', 0)} files across "
+            f"{scan.get('total_directories', 0)} directories. Main detected languages: {language_text}. "
+            f"Detected frameworks: {', '.join(frameworks) if frameworks else 'none registered'}. "
+            f"Architecture signals: {', '.join(detected_areas) if detected_areas else 'none detected'}."
+        )
+        readmes = [item["path"] for item in files if item.get("name", "").lower().startswith("readme")]
+        return {
+            "answer": answer,
+            "sources": [_source(path) for path in (readmes + manifests)[:4]],
+            "mode": "scan",
+        }
+
+    if "start reading" in normalized or "where should i start" in normalized:
+        priority = [item for item in files if item.get("name", "").lower().startswith("readme")]
+        priority += [item for item in files if item.get("name", "").lower() in manifest_names]
+        priority += [
+            item for item in files
+            if re.search(r"(^|[\\/])(main|index|app)\.(py|tsx?|jsx?|java|go|rs|dart)$", item.get("path", ""), re.I)
+        ]
+        unique = []
+        seen = set()
+        for item in priority:
+            if item.get("path") not in seen:
+                unique.append(item)
+                seen.add(item.get("path"))
+        selected = unique[:5]
+        answer = "Start with:\n" + "\n".join(
+            f"{index + 1}. {item['path']}" for index, item in enumerate(selected)
+        ) if selected else "No README, manifest, or common entry point was found in the scan."
+        return {"answer": answer, "sources": [_source(item["path"]) for item in selected], "mode": "scan"}
+
+    return None
+
 # Static registry of all known frameworks and databases for verification
 KNOWN_FRAMEWORKS = {
     "Django", "Flask", "FastAPI", "Pyramid", "Tornado", "Sanic",
@@ -135,7 +217,7 @@ class ChatService:
     and Ollama-driven LLM answer generation for project-related questions.
     """
 
-    def __init__(self, top_k: int = 5, ollama_model: str = OLLAMA_MODEL):
+    def __init__(self, top_k: int = 3, ollama_model: str = OLLAMA_MODEL):
         """
         Initializes the ChatService dependencies.
         """
@@ -158,6 +240,10 @@ class ChatService:
         """
         logger.info(f"Processing chat request for project: {project_id} | Query: '{query}'")
 
+        quick_answer = _quick_scan_answer(project_id, query)
+        if quick_answer is not None:
+            return quick_answer
+
         embeddings_path = WORKSPACE_DIR / project_id / "embeddings"
         index_file = embeddings_path / "index.bin"
         docs_file = embeddings_path / "documents.json"
@@ -170,7 +256,8 @@ class ChatService:
                 logger.error(f"Failed to build vector index dynamically for project {project_id}")
                 return {
                     "answer": "Error: Failed to index the project files. Ensure the project is scanned first.",
-                    "sources": []
+                    "sources": [],
+                    "mode": "error",
                 }
 
         # 2. Retrieve relevant documents
@@ -258,5 +345,6 @@ class ChatService:
 
         return {
             "answer": answer,
-            "sources": list(sources_by_file.values())
+            "sources": list(sources_by_file.values()),
+            "mode": "ai",
         }

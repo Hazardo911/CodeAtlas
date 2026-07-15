@@ -15,8 +15,8 @@ This report describes the CodeAtlas build prepared for OSDHack 2026 on 15 July 2
 | Loaded CPU footprint | Approximately 3.86 GB reported by Ollama for the loaded model |
 | Embedding model | `BAAI/bge-small-en-v1.5` through SentenceTransformers |
 | Vector search | FAISS `IndexFlatIP` over normalized embeddings |
-| Prompt budget | 9,000 characters, bounded to local model context |
-| Output budget | 320 generated tokens |
+| Prompt budget | 6,000 characters, bounded to local model context |
+| Output budget | 120 generated tokens |
 | Runtime mode tested | CPU-only; Ollama reported 0 bytes VRAM use |
 
 ## Tested device and software

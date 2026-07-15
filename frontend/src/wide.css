@@ -14,8 +14,10 @@
   }
 
   .hero-shell {
-    min-height: calc(100vh - 72px);
-    min-height: calc(100svh - 72px);
+    height: calc(100vh - 72px);
+    height: calc(100dvh - 72px);
+    min-height: 650px;
+    overflow: hidden;
   }
 
   .hero-shell > .hero {
@@ -29,9 +31,6 @@
     max-width: none;
   }
 
-  .trust {
-    margin-bottom: 0;
-  }
 }
 
 /* Product palette: premium neutral surfaces with restrained semantic accents. */
@@ -181,14 +180,14 @@ main {
   position: absolute;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
+  gap: 10px;
+  padding: 10px 13px;
   color: var(--lime);
-  background: rgb(5 5 5 / 72%);
-  border: 1px solid color-mix(in srgb, currentColor 32%, transparent);
-  border-radius: 7px;
-  backdrop-filter: blur(8px);
-  opacity: 0.72;
+  background: rgb(5 7 5 / 92%);
+  border: 1px solid color-mix(in srgb, currentColor 55%, transparent);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+  opacity: 1;
   animation: signalFloat 5s ease-in-out infinite;
   transition:
     opacity 0.2s ease,
@@ -196,8 +195,8 @@ main {
     transform 0.2s ease;
 }
 .signal-chip > i {
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   flex: none;
   border-radius: 50%;
   background: currentColor;
@@ -211,16 +210,22 @@ main {
 }
 .signal-chip small {
   grid-column: 1/-1;
-  color: #777e77;
-  font: 7px ui-monospace;
+  color: #aeb7aa;
+  font:
+    600 10px/1.25 Inter,
+    system-ui,
+    sans-serif;
   text-transform: uppercase;
-  letter-spacing: 0.09em;
-  margin-bottom: 2px;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
 }
 .signal-chip b,
 .signal-chip em {
-  font: 500 9px ui-monospace;
-  color: #d9ddd7;
+  font:
+    650 11px/1.2 Inter,
+    system-ui,
+    sans-serif;
+  color: #f0f4ed;
 }
 .signal-chip em {
   color: currentColor;
@@ -262,7 +267,7 @@ main {
 @keyframes signalFloat {
   50% {
     transform: translateY(-5px);
-    opacity: 0.9;
+    opacity: 1;
   }
 }
 
@@ -699,6 +704,17 @@ main:not(.product-dashboard) .run-sim {
 main:not(.product-dashboard) .action-list em,
 main:not(.product-dashboard) .browser-note {
   font-size: 8px;
+}
+
+main:not(.product-dashboard) .heading small,
+main:not(.product-dashboard) .outcome-strip small,
+main:not(.product-dashboard) .outcome-strip article span,
+main:not(.product-dashboard) .journey-card small,
+main:not(.product-dashboard) .journey-card > header > span,
+main:not(.product-dashboard) .journey-proof small,
+main:not(.product-dashboard) .feature-card i {
+  font-family: Inter, system-ui, sans-serif;
+  font-weight: 600;
 }
 .galaxy-loading {
   height: 560px;
@@ -1287,6 +1303,8 @@ main:not(.product-dashboard) .browser-note {
 .dashboard-stage .health-trend > small,
 .dashboard-stage .chat-layout aside > small {
   color: #a0aa9c;
+  font-family: Inter, system-ui, sans-serif;
+  font-weight: 600;
   font-size: 10px;
   line-height: 1.4;
 }
@@ -1415,6 +1433,8 @@ main:not(.product-dashboard) .browser-note {
 .dashboard-stage .galaxy-instruction,
 .dashboard-stage .galaxy-details > small,
 .dashboard-stage .detail-deps > span {
+  font-family: Inter, system-ui, sans-serif;
+  font-weight: 600;
   font-size: 10px;
 }
 .dashboard-stage .galaxy-toolbar > div:first-child b,

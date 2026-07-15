@@ -74,7 +74,11 @@ export type ChatSource = {
   line_start: number | null
   line_end: number | null
 }
-export type ChatResponse = { answer: string; sources: ChatSource[] }
+export type ChatResponse = {
+  answer: string
+  sources: ChatSource[]
+  mode?: 'scan' | 'ai' | 'error'
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, init)

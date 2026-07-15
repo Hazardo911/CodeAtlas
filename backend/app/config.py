@@ -40,7 +40,7 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 MIN_SIMILARITY_SCORE = float(os.getenv("MIN_SIMILARITY_SCORE", "0.40"))
 # Phi-3 runs with a 4K context on the default local Ollama setup. Keeping the
 # grounded prompt compact materially improves CPU generation latency.
-MAX_PROMPT_CHARS = int(os.getenv("MAX_PROMPT_CHARS", "9000"))
+MAX_PROMPT_CHARS = int(os.getenv("MAX_PROMPT_CHARS", "6000"))
 AI_SOURCE_CHUNK_CHARS = int(os.getenv("AI_SOURCE_CHUNK_CHARS", "6000"))
 AI_SOURCE_CHUNK_OVERLAP = int(os.getenv("AI_SOURCE_CHUNK_OVERLAP", "400"))
 AI_MAX_SOURCE_FILE_BYTES = int(os.getenv("AI_MAX_SOURCE_FILE_BYTES", "524288"))

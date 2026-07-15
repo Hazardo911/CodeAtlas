@@ -119,12 +119,6 @@ function Heading({
   )
 }
 
-const trust = [
-  ['ai', '100% On-Device', 'All analysis happens locally.'],
-  ['lock', 'Private by Design', 'Your code never leaves your machine.'],
-  ['health', 'AI-Powered', 'Deep code understanding using local LLMs.'],
-  ['code', 'Open Source', 'Built for developers, by developers.'],
-] as const
 const steps = [
   ['folder', 'Upload', 'Copy a selected repository into the local backend workspace.'],
   ['branch', 'Analyze', 'Scan files, languages, Python symbols, and architecture signals.'],
@@ -379,19 +373,6 @@ function App() {
           </div>
         </section>
       </div>
-      <section className="trust reveal">
-        {trust.map(([i, t, d]) => (
-          <article key={t}>
-            <span>
-              <Icon name={i} />
-            </span>
-            <div>
-              <b>{t}</b>
-              <p>{d}</p>
-            </div>
-          </article>
-        ))}
-      </section>
       <section className="section galaxy-story" id="galaxy">
         <Heading
           eyebrow="PROJECT GALAXY · CONCEPT PREVIEW"

@@ -31,31 +31,12 @@ class PromptBuilder:
         # 1. System Instructions
         system_instructions = (
             "===== SYSTEM INSTRUCTIONS =====\n"
-            "You are CodeAtlas AI, a software architecture assistant.\n"
-            "CRITICAL CONSTRAINTS:\n"
-            "- Answer the question ONLY from the retrieved project context.\n"
-            "- Never invent files, frameworks, modules, APIs, or architecture.\n"
-            "- Under no circumstances use speculative language or any of these forbidden phrases:\n"
-            "  * 'could be'\n"
-            "  * 'might'\n"
-            "  * 'probably'\n"
-            "  * 'likely'\n"
-            "  * 'expected to'\n"
-            "  * 'appears to'\n"
-            "  * 'it is reasonable to infer'\n"
-            "  * 'suggests that'\n"
-            "  * 'potentially'\n"
-            "- If evidence is not found or information is missing, clearly state that it could not be found in the uploaded project. Specifically respond with: 'I could not find evidence for this in the uploaded project.'\n"
-            "- Do not guess or infer missing architecture.\n"
-            "- Use structured metadata and extracted symbols first for project/architecture claims.\n"
-            "- Use retrieved local source excerpts only for implementation details.\n"
-            "- Treat line ranges as citation metadata; never claim unseen code.\n"
-            "- Always produce structured answers using these exact sections:\n\n"
-            "Project Purpose\n"
-            "Technologies\n"
-            "Architecture\n"
-            "Important Components\n"
-            "Answer\n\n"
+            "You are CodeAtlas AI, a concise software architecture assistant.\n"
+            "Answer only from the verified project metadata and retrieved evidence below.\n"
+            "Never invent files, frameworks, APIs, behavior, or architecture.\n"
+            "Prefer structured metadata for architecture claims and source excerpts for implementation details.\n"
+            "If evidence is missing, say: 'I could not find evidence for this in the uploaded project.'\n"
+            "Answer the exact question directly in at most 180 words. Use short headings or bullets only when useful.\n"
             "================================\n\n"
         )
 
@@ -125,8 +106,8 @@ class PromptBuilder:
             )
 
             # Truncate large individual files to prevent OOM/context window overflow
-            if len(content) > 3000:
-                content = content[:3000] + "\n... [TRUNCATED FOR BUDGET] ..."
+            if len(content) > 1600:
+                content = content[:1600] + "\n... [TRUNCATED FOR BUDGET] ..."
 
             retrieved_files += (
                 "===== FILE =====\n"
