@@ -1,247 +1,221 @@
-# 🚀 CodeAtlas
+# CodeAtlas
 
-<p align="center">
-  <img src="https://img.shields.io/badge/status-active-success.svg" alt="Project Status">
-  <img src="https://img.shields.io/badge/python-3.12-blue.svg" alt="Python Version">
-  <img src="https://img.shields.io/badge/backend-FastAPI-green.svg" alt="Backend Framework">
-  <img src="https://img.shields.io/badge/license-MIT-red.svg" alt="License">
-</p>
+**Understand unfamiliar codebases visually, privately, and with local AI.**
 
-### 💡 "Understand Any Codebase in Minutes"
+[![OSDHack 2026](https://img.shields.io/badge/OSDHack%202026-On--Device%20AI-b7ff2a)](https://unstop.com/hackathons/osdhack-2026-open-source-developers-communityosdc-1693803)
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-blue)](https://www.python.org/)
+[![Ollama](https://img.shields.io/badge/LLM-Ollama%20%2B%20Phi--3-black)](https://ollama.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-red)](LICENSE)
 
-CodeAtlas is an on-device, AI-powered codebase analysis platform that scans software repositories, indexes source code using Tree-sitter, automatically infers project architecture using a multi-signal scoring engine, and exposes a secure Retrieval-Augmented Generation (RAG) chat API for codebase exploration.
+> **Demo video:** `PASTE THE FINAL 2–3 MINUTE VIDEO LINK HERE BEFORE SUBMISSION`
 
----
+CodeAtlas is a localhost application that imports a public GitHub repository or local project folder, scans its structure, detects architecture signals, renders a scan-derived interactive 3D galaxy, and answers codebase questions using a fully local RAG pipeline. Repository evidence is embedded locally with BAAI/bge-small-en-v1.5, retrieved from a local FAISS index, and sent only to a local Phi-3 model through Ollama.
 
-## ✨ Features
+![CodeAtlas on-device AI landing page](docs/screenshots/codeatlas-home.png)
 
-- **Multiple Project Sources**: Support for uploading ZIP archives, checking out GitHub repositories, and analyzing local workspace directories.
-- **Intelligent Ignore Logic**: Enforces case-insensitive, path-agnostic pruning of dependency folders (e.g. `.venv`, `node_modules`, `build`, `target`) at scan and extraction levels to prevent workspace pollution.
-- **Tree-sitter AST Parsing**: Fully indexes programming language files to extract imports, classes, and function structures.
-- **Registry-Based Architecture Detection**: Modular, configuration-driven scoring engine that evaluates directories, manifests, file extensions, and code imports to identify layers (Backend, Frontend, Mobile, Database, API, AI, Docker, CI/CD) and calculate confidence levels.
-- **Query-Aware Semantic Retrieval**: Vector index retriever that dynamically re-prioritizes context types based on query intent (e.g., placing READMEs first for overview questions, source code first for implementation questions).
-- **Hallucination Reducer & Grounding Guardrails**: Dual-stage LLM generation pipeline that scrubs speculative language, detereministically validates mentioned frameworks/databases against verified evidence, and triggers stricter regeneration prompts or sentence-level pruning if unsupported components are mentioned.
+## Why it matters
 
----
+Developers joining an unfamiliar project spend hours locating entry points, frameworks, important folders, and architectural boundaries. Cloud code assistants can introduce privacy and compliance concerns. CodeAtlas provides an offline-capable exploration workflow whose core AI inference and repository processing remain on the user's computer.
 
-## 🏗 Architecture
+## Working features
 
-### Project Workflow
-```
-Upload / Ingestion ──> Workspace Extraction ──> Scanner ──> AST Parser (Tree-sitter)
-                                                                    │
-Answer Generation <── Ollama (phi3:latest) <── Prompt Builder <── FAISS Index (BAAI/bge)
-```
+- Import a public GitHub repository or select a local project folder.
+- Scan real file paths, sizes, directories, languages, empty files, and largest files.
+- Detect backend, frontend, mobile, database, API, AI, testing, Docker, CI, documentation, and known frameworks using scored evidence.
+- Explore top-level repository areas in an interactive Three.js 3D galaxy.
+- Generate a scan-derived reading guide and repository metrics.
+- Ask evidence-grounded questions through local semantic retrieval and `phi3:latest`.
+- Display retrieved file and line-range citations when source evidence is available.
+- Exclude secrets, lockfiles, generated folders, binaries, oversized files, and common credential formats from AI source context.
 
-### Supported Upload Methods
-- **ZIP Upload**: `POST /projects/upload` - Accepts raw ZIP file multipart uploads.
-- **Local Folder Upload**: `POST /projects/upload-folder` - Accepts an absolute path to a folder on the host system, normalizing slash styles dynamically.
-- **GitHub Repository Upload**: `POST /projects/upload-github` - Clones a remote repository via HTTP and initializes a workspace.
+The current Galaxy links represent **folder containment**, not code dependencies. The What-if screen is explicitly marked as a concept preview. See [Known limitations](#known-limitations).
 
----
+## Quick start (Windows PowerShell)
 
-## 🔍 Code Analysis Pipeline
+### Prerequisites
 
-1. **Scanner**: Traverses the extracted repository source using Python 3.12 `Path.walk()`, pruning ignored folders in-place. Generates file lists, sizes, and language distributions.
-2. **Parser**: Analyzes files matching supported extensions using Tree-sitter grammars to generate abstract syntax trees and extract symbol definitions.
-3. **Health Analyzer**: Audits repository metadata to detect duplicate files, largest modules, empty files, and lines of code.
+- Git
+- Python `3.12.x`
+- Node.js `20+` and npm
+- [`uv`](https://docs.astral.sh/uv/)
+- [Ollama](https://ollama.com/)
+- At least 4 GB free disk space for dependencies and local models
 
----
+### 1. Clone and install
 
-## 🤖 AI Architecture (Local RAG Pipeline)
+```powershell
+git clone https://github.com/Hazardo911/CodeAtlas.git
+cd CodeAtlas
 
-CodeAtlas runs entirely on-device; no cloud APIs or external LLM tokens are required.
-
-```
-Repository Source Code
-        │
-        ▼
-   Scanner (Ignored Pruning)
-        │
-        ▼
-Tree-sitter AST Parser (Symbol Extraction)
-        │
-        ▼
-Knowledge Base Generation (metadata.json, symbols.json, etc.)
-        │
-        ▼
-Embeddings Generation (Local HuggingFace model: BAAI/bge-small-en-v1.5)
-        │
-        ▼
-Vector Indexing (Local FAISS Store)
-        │
-        ▼
-Query-Aware Semantic Retrieval (Score filtering, duplicate file chunk exclusion)
-        │
-        ▼
-Prompt Builder (Strict grounding, verified evidence metadata)
-        │
-        ▼
-Local Ollama Integration (phi3:latest)
-        │
-        ▼
-Evidence-Grounded Answer
-```
-
----
-
-## 🏛 Architecture Detection Engine
-
-Instead of relying solely on folder structures (such as `frontend/` or `backend/`), CodeAtlas uses a modular, configuration-driven scoring engine matching:
-* **Manifest Detection**: Reads and parses dependencies in files like `package.json`, `pubspec.yaml`, `pom.xml`, etc.
-* **Import Detection**: Scans file headers for framework-specific library import declarations.
-* **Framework Detection**: Deduplicates and matches detected frameworks.
-* **Rule-based Scoring**: Accumulates category points (e.g. +3 for direct framework match, +3 for code import, +3 for entry file, +2 for folder prefix) and evaluates them against threshold settings.
-* **Confidence Levels**: Assigns confidence levels (`High`, `Medium`, `Low`, `None`) based on the score threshold.
-
----
-
-## 🧠 Supported Ecosystems
-
-### Supported Languages
-* Python (`.py`)
-* JavaScript (`.js`, `.jsx`)
-* TypeScript (`.ts`, `.tsx`)
-* Java (`.java`)
-* Go (`.go`)
-* Rust (`.rs`)
-* C++ (`.cpp`, `.c`, `.h`, `.hpp`)
-* C# (`.cs`)
-* PHP (`.php`)
-* Ruby (`.rb`)
-* Dart (`.dart`)
-* Swift (`.swift`)
-* Kotlin (`.kt`)
-
-### Supported Frameworks & Libraries
-| Language | Frameworks / Libraries |
-| :--- | :--- |
-| **Python** | FastAPI, Django, Flask, Pyramid, Tornado, Sanic |
-| **JavaScript / TypeScript** | React, Next.js, Vue, Nuxt, Angular, Svelte, SvelteKit, Astro, Remix, SolidJS, Express, NestJS |
-| **Java** | Spring Boot |
-| **Go** | Gin, Fiber, Echo |
-| **Rust** | Actix, Rocket, Axum |
-| **PHP** | Laravel, Symfony |
-| **Mobile** | Flutter, React Native, Android (Native), iOS (Native) |
-| **AI / RAG** | LangChain, Ollama, Sentence Transformers, FAISS |
-
----
-
-## 📂 Workspace Structure & Generated Outputs
-
-Every project workspace receives its own unique folder inside `workspace/{project_id}/` where intermediate representations are cached:
-
-```
-workspace/{project_id}/
-├── source/                  # Extracted source code files
-├── cache/                   # Generated code-analysis JSON outputs
-│   ├── scan_result.json     # File listing and language metadata
-│   ├── health.json          # Lines of code and project statistics
-│   ├── symbols.json         # Tree-sitter parsed imports, classes, and functions
-│   ├── architecture.json    # Evaluated architecture checkpoints and details
-│   ├── project_summary.json # High-level project summary overview
-│   └── knowledge.json       # Combined knowledge base payload
-└── embeddings/              # Local Vector Database
-    ├── index.bin            # FAISS vector index binary
-    └── documents.json       # Document text chunks, classifications, and symbol mappings
-```
-
----
-
-## 🔌 API Endpoints
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/projects/upload` | Upload a ZIP archive to initialize a workspace. |
-| `POST` | `/projects/upload-files` | Upload browser-selected files while preserving relative paths. |
-| `POST` | `/projects/upload-folder` | Ingest a project from an absolute path on the host system. |
-| `POST` | `/projects/upload-github` | Checkout and clone a remote GitHub repository. |
-| `POST` | `/projects/{id}/scan` | Scan files, analyze health metrics, and extract AST symbols. |
-| `POST` | `/projects/{id}/architecture` | Run the multi-signal registry-driven architecture detector. |
-| `POST` | `/projects/{id}/chat` | Ask technical questions about the codebase using local RAG. |
-| `GET` | `/ai/status` | Check local Ollama availability and configured model installation. |
-
----
-
-## 📦 Installation & Running Locally
-
-### 1. Prerequisite Checks
-* Python **3.12.x** installed.
-* [Ollama](https://ollama.com/) running locally with the `phi3:latest` model downloaded:
-  ```bash
-  ollama pull phi3:latest
-  ```
-
-### 2. Clone and Setup Environment
-```bash
-git clone <repository-url>
-cd CodeAtlas/backend
-```
-
-### 3. Install dependency manager `uv`
-```bash
 pip install uv
+uv sync --locked
+
+cd frontend
+npm ci
+cd ..
 ```
 
-### 4. Create and Sync Virtual Environment
-```bash
-uv venv
-# On Windows PowerShell
-.venv\Scripts\activate
+### 2. Download the local LLM
 
-# Sync packages
-uv sync
+Open Ollama from the Windows Start menu, then run:
+
+```powershell
+ollama pull phi3:latest
+ollama list
 ```
 
-### 5. Start the API Server
-```bash
-uv run uvicorn app.main:app --reload --port 8000
+`phi3:latest` is approximately 2.2 GB in the tested Ollama build. If `ollama serve` reports that port `11434` is already in use, Ollama is already running.
+
+### 3. Configure the backend
+
+```powershell
+Copy-Item backend\.env.example backend\.env
 ```
-* **API Address**: `http://127.0.0.1:8000`
-* **Swagger Documentation Docs**: `http://127.0.0.1:8000/docs`
 
----
+The defaults bind all services to loopback. Do not point `OLLAMA_BASE_URL` at a remote host if you require strict on-device processing.
 
-## 📸 Screenshots Placeholders
+### 4. Run the backend
 
-### Ingestion & Scanning
-* **Repository Upload**: `[Screenshot Placeholder: upload_endpoints.png]`
-* **Architecture Detection**: `[Screenshot Placeholder: architecture_endpoints.png]`
+```powershell
+cd backend
+& ..\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
 
-### AI Chat & Developer Docs
-* **Swagger API UI**: `[Screenshot Placeholder: swagger_docs.png]`
-* **Chat Interface**: `[Screenshot Placeholder: rag_chat_interface.png]`
-* **Architecture Diagram**: `[Screenshot Placeholder: system_diagram.png]`
-* **On-device AI policy**: [`docs/AI_ARCHITECTURE.md`](docs/AI_ARCHITECTURE.md)
+Wait for `Application startup complete`. Swagger is available at <http://127.0.0.1:8000/docs>.
 
----
+### 5. Run the frontend
 
-## 🛣 Roadmap
+In a second terminal, enter the cloned repository's frontend directory:
 
-### Completed Milestones
-* [x] **Ingestion Engine**: ZIP, Local Folder, and GitHub clone sources.
-* [x] **Ignore Safeguards**: Centralized path exclusion logic.
-* [x] **Repository Scanner**: Folder traversing, language detection, health audits.
-* [x] **AST Parser**: Tree-sitter indexing and symbol extraction.
-* [x] **Registry Architecture Detector**: Multi-signal scoring for backend/frontend/mobile/database layers.
-* [x] **On-Device RAG Pipeline**: SentenceTransformers embeddings, FAISS indexing, Ollama API connector.
-* [x] **Quality Guardrails**: Speculation scrubbing, database/framework alignment check, sentence-pruning fallback.
+```powershell
+cd <clone-path>\CodeAtlas\frontend
+npm run dev
+```
 
-### Future Backlog
-* [ ] **Dependency Graph**: Generate imports-based module maps.
-* [ ] **Architecture Visualization**: Render interactive network graphics of layers.
-* [ ] **Multi-Language AST Parse**: Fully implement Tree-sitter parsers for TypeScript, Java, and Rust files.
-* [ ] **Automatic Code Review**: Highlight anti-patterns, duplicate logic blocks, and security flaws.
-* [ ] **Documentation Generator**: Auto-generate markdown wiki pages.
+Open the Vite URL shown in the terminal, normally <http://localhost:5173>.
 
----
+### 6. Verify local AI
 
-## 🤝 Contributing
+With the backend running:
 
-Contributions are welcome. Please open an issue or submit a pull request for additional parser grammars, framework rules, or UI visual enhancements.
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/ai/status
+```
 
----
+Expected fields:
 
-## 📄 License
+```text
+available       : True
+model_available : True
+model           : phi3:latest
+provider        : Ollama
+```
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## Sample input and expected output
+
+1. Click **Upload Repository**.
+2. Paste a public URL such as `https://github.com/tiangolo/full-stack-fastapi-template`, or choose **Local folder**.
+3. Wait for upload/clone, scan, and architecture detection to finish.
+4. Open the dashboard.
+
+Expected results:
+
+- **Architecture:** detected categories, confidence, and matched evidence.
+- **Galaxy:** interactive planets derived from scanned top-level areas.
+- **Repository:** real file, directory, size, language, and empty-file metrics.
+- **Onboarding:** suggested README, manifest, entry-point, and large-file reading order.
+- **AI Chat:** a local answer plus retrieved file/line citations where available.
+
+Suggested questions:
+
+```text
+Give me a project overview.
+Which frameworks are detected?
+Where should I start reading?
+Explain the purpose of the API routes.
+```
+
+The first chat request builds the local embedding index and can take longer. On the tested CPU-only device, an already-indexed project answered a bounded overview request in approximately 42 seconds.
+
+## On-device AI verification
+
+| Component | Location | Internet required? | Repository data leaves device? |
+|---|---|---:|---:|
+| Scanner and architecture detector | Local FastAPI process | No | No |
+| Embeddings (`BAAI/bge-small-en-v1.5`) | Local SentenceTransformers runtime | Only for first model download | No |
+| Vector search | Local FAISS files | No | No |
+| Answer generation (`phi3:latest`) | Local Ollama process | Only for first model download | No |
+| GitHub import | Git client to GitHub | Yes, to download a public repository | No repository upload |
+| Local-folder import | Browser to localhost backend | No | No |
+
+After the embedding model and Phi-3 are cached, repository analysis and AI chat can run offline. CodeAtlas has no cloud backend and uses no hosted LLM API.
+
+## Architecture
+
+```text
+GitHub URL / local folder
+          |
+          v
+React + Vite UI (localhost)
+          |
+          v
+FastAPI ingestion -> scanner -> Python symbol parser -> architecture detector
+          |                                      |
+          |                                      +-> dashboard + 3D galaxy
+          v
+structured metadata + bounded safe source excerpts
+          |
+          v
+local BGE embeddings -> local FAISS retrieval -> bounded grounded prompt
+          |
+          v
+Ollama on localhost -> quantized Phi-3 -> answer + evidence citations
+```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full data flow and design decisions, and [docs/TECHNICAL_REPORT.md](docs/TECHNICAL_REPORT.md) for runtime details, evaluation, privacy, safety, attribution, and failure cases.
+
+## Tests
+
+```powershell
+cd CodeAtlas
+cd backend
+& ..\.venv\Scripts\python.exe -m unittest test_ai_context.py test_ignore.py -v
+
+cd ..\frontend
+npm run lint
+npm run build
+```
+
+## API summary
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/health` | Backend health check |
+| `GET` | `/ai/status` | Ollama and configured-model status |
+| `POST` | `/projects/upload` | ZIP import |
+| `POST` | `/projects/upload-files` | Browser-selected folder import |
+| `POST` | `/projects/upload-github` | Public GitHub clone |
+| `POST` | `/projects/{id}/scan` | Repository scan and symbol extraction |
+| `POST` | `/projects/{id}/architecture` | Architecture detection |
+| `POST` | `/projects/{id}/chat` | Local project-grounded AI chat |
+
+## Known limitations
+
+- Symbol extraction is currently Python-only; other languages still contribute file, manifest, path, import-text, and framework signals.
+- Dependency and call graphs are not implemented. Galaxy edges currently show containment.
+- What-if impact simulation is a labelled UI preview without a backend engine.
+- Public GitHub HTTPS URLs are supported; private-repository OAuth is not implemented.
+- Local CPU inference is slower than hosted GPU APIs and answer quality is bounded by Phi-3 and retrieved evidence.
+- Citations show retrieved evidence, not formal proof that every generated statement is correct.
+- Uploaded repositories are copied into `backend/workspace/` until manually removed.
+
+## Submission documents
+
+- [Architecture](ARCHITECTURE.md)
+- [Technical report, evaluation, privacy, and attribution](docs/TECHNICAL_REPORT.md)
+- [2–3 minute demo recording script](docs/DEMO_SCRIPT.md)
+- [Final submission checklist](docs/SUBMISSION_CHECKLIST.md)
+
+## License
+
+CodeAtlas is released under the [MIT License](LICENSE).
